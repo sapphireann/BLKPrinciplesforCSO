@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Communicate with Impact — Client Temperature Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#06080d;--panel:#0d1420;--surface:#111928;--border:#182438;--hi:#1e3050;
+  --text:#cdd8f0;--muted:#4a6080;--dim:#090d14;
+  --ok:#10b981;--bad:#ef4444;--gold:#f5a623;
+  --comm:#a78bfa;
+  --t-risk:#ef4444;
+  --t-cool:#f97316;
+  --t-stable:#f5a623;
+  --t-warm:#10b981;
+  --t-trust:#a78bfa;
+}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(167,139,250,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(167,139,250,0.03) 1px,transparent 1px);
+  background-size:60px 60px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:36px 18px 60px}
+
+/* ── HEADER ── */
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.title{font-family:'Playfair Display',serif;font-size:clamp(24px,4vw,34px);line-height:1.15;color:var(--text);margin-bottom:8px}
+.title span{color:var(--comm)}
+.sub{font-size:13px;color:var(--muted);line-height:1.7;max-width:540px;margin-bottom:6px}
+
+/* ── PRINCIPLES STRIP ── */
+.principles{display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:22px}
+.principles-lbl{width:100%;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.pp{font-size:10px;font-family:'IBM Plex Mono',monospace;padding:3px 10px;border-radius:20px;border:1px solid var(--comm);color:var(--comm);background:rgba(167,139,250,.1)}
+
+/* ── TEMPERATURE GAUGE ── */
+.gauge-wrap{margin-bottom:22px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+.gauge-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.gauge-client{display:flex;flex-direction:column;gap:2px}
+.gauge-client-name{font-size:16px;font-weight:500}
+.gauge-client-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.gauge-status-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.gauge-status{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.08em;padding:4px 12px;border-radius:20px;border:1px solid;transition:all .5s}
+.gauge-points{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+
+/* Temperature bar */
+.temp-track{position:relative;height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:8px}
+.temp-fill{height:100%;border-radius:5px;transition:width .6s cubic-bezier(.4,0,.2,1),background .6s ease}
+.temp-labels{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:.06em}
+
+/* Delta indicator */
+.delta{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;transition:all .4s;opacity:0;position:absolute;right:20px;top:14px}
+.delta.show{opacity:1}
+.delta.pos{color:var(--ok)}
+.delta.neg{color:var(--bad)}
+
+/* ── PROGRESS ── */
+.prog-wrap{margin-bottom:20px}
+.prog-track{height:2px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:7px}
+.prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--comm),var(--gold));transition:width .5s ease}
+.prog-meta{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+
+/* ── CARD ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color .3s;animation:slideUp .32s ease both}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.card-top{padding:10px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.tag{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--comm)}
+.card-moment{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+
+/* Context box */
+.ctx-box{margin:16px 22px 0;padding:12px 14px;background:var(--dim);border:1px solid var(--border);border-left:2px solid var(--comm);border-radius:8px}
+.ctx-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--comm);margin-bottom:5px}
+.ctx-text{font-size:12px;color:var(--muted);line-height:1.6;font-style:italic}
+
+.card-body{padding:20px 22px 18px}
+.card-q{font-family:'Playfair Display',serif;font-size:clamp(15px,2.5vw,19px);line-height:1.6;font-style:italic}
+
+/* Choices */
+.choices{padding:0 22px 18px;display:flex;flex-direction:column;gap:9px}
+.choice{display:flex;gap:10px;padding:13px 14px;border-radius:10px;font-size:13px;text-align:left;cursor:pointer;transition:all .2s;border:1px solid var(--border);color:var(--muted);background:transparent;line-height:1.5;width:100%}
+.choice:not(:disabled):hover{border-color:var(--hi);color:var(--text);background:var(--panel)}
+.choice .letter{font-family:'IBM Plex Mono',monospace;font-size:11px;flex-shrink:0}
+.choice.correct{background:rgba(16,185,129,.1);border-color:var(--ok);color:var(--ok)}
+.choice.wrong{background:rgba(239,68,68,.08);border-color:var(--bad);color:var(--bad)}
+.choice.neutral{background:rgba(245,166,35,.08);border-color:var(--gold);color:var(--gold)}
+
+/* Explanation */
+.expl{margin:0 22px 16px;padding:14px 16px;border-radius:10px;border-left:3px solid;animation:slideUp .28s ease}
+.expl-hdr{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px}
+.expl-txt{font-size:13.5px;line-height:1.7;color:var(--text);margin-bottom:10px}
+.principle-box{padding:10px 12px;border-radius:8px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.3);margin-top:10px}
+.principle-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--comm);letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px;font-weight:600}
+.principle-txt{font-size:12px;line-height:1.6;font-style:italic;color:var(--text)}
+.temp-change-box{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;border-radius:7px}
+.tcb-arrow{font-size:16px;font-weight:700}
+.tcb-txt{font-size:12px;font-family:'IBM Plex Mono',monospace}
+
+/* Next */
+.btn-next{display:block;width:calc(100% - 44px);margin:0 22px 22px;padding:13px;background:transparent;border:1px solid var(--hi);border-radius:10px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.1em;cursor:pointer;transition:background .2s}
+.btn-next:hover{background:var(--border)}
+
+/* Connection callout */
+.connection{margin:0 22px 16px;padding:10px 14px;border-radius:8px;background:var(--dim);border:1px solid var(--border);display:flex;gap:10px;align-items:flex-start}
+.conn-icon{font-size:14px;flex-shrink:0}
+.conn-txt{font-size:11px;color:var(--muted);line-height:1.5}
+.conn-link{color:var(--comm);font-family:'IBM Plex Mono',monospace;font-size:10px}
+
+/* ── RESULTS ── */
+.results{animation:slideUp .4s ease}
+.results-top{text-align:center;padding:32px 16px 24px}
+.results-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.results-score{font-family:'Playfair Display',serif;font-size:72px;font-weight:700;line-height:1}
+.results-grade{font-size:18px;margin-top:6px;margin-bottom:4px}
+.results-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+.final-temp{margin-bottom:24px;padding:18px;background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.ft-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.principles-profile{margin-bottom:20px;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:12px;text-align:left}
+.pp-title{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.pp-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pp-lbl{font-size:11px;color:var(--muted);flex:1}
+.pp-bar{width:120px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;flex-shrink:0}
+.pp-fill{height:100%;border-radius:2px;background:var(--comm);transition:width .8s ease}
+.pp-n{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--comm);width:30px;text-align:right;flex-shrink:0}
+.review-list{text-align:left;margin-bottom:20px;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.review-item{padding:12px 16px;border-bottom:1px solid var(--border);font-size:12.5px}
+.review-item:last-child{border-bottom:none}
+.btn-restart{width:100%;padding:14px;background:var(--surface);border:1px solid var(--hi);border-radius:10px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.1em;cursor:pointer;transition:background .2s}
+.btn-restart:hover{background:var(--panel)}
+
+@media(max-width:480px){.choices{padding:0 14px 14px}.card-body{padding:18px 14px 14px}.expl{margin:0 14px 12px}.ctx-box,.connection{margin-left:14px;margin-right:14px}.btn-next{width:calc(100% - 28px);margin-left:14px;margin-right:14px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div style="margin-bottom:24px">
+    <div class="eyebrow">Week 2 · CSO EMEA · Communicate with Impact</div>
+    <h1 class="title">Client <span>Temperature Monitor</span></h1>
+    <p class="sub">You are the CSO for Meridian Pension Fund — a €2.1B client 8 months into their mandate. Every communication decision you make moves the client temperature up or down. Anticipate their needs. Be accurate. Know what matters to them.</p>
+    <div class="principles">
+      <div class="principles-lbl">The four principles of Communicate with Impact</div>
+      <span class="pp">Anticipate needs before they are stated</span>
+      <span class="pp">Ensure accuracy and professionalism</span>
+      <span class="pp">Understand what matters to this client</span>
+      <span class="pp">Be proactive — never make clients chase</span>
+    </div>
+  </div>
+
+  <!-- Temperature gauge -->
+  <div class="gauge-wrap" id="gaugeWrap">
+    <div class="gauge-header">
+      <div class="gauge-client">
+        <div class="gauge-client-name">Meridian Pension Fund</div>
+        <div class="gauge-client-meta">€2.1B · Multi-Asset · 8 months post go-live</div>
+      </div>
+      <div class="gauge-status-wrap">
+        <div class="gauge-status" id="gaugeStatus">Stable</div>
+        <div class="gauge-points" id="gaugePoints">65 / 100</div>
+        <div class="delta" id="delta"></div>
+      </div>
+    </div>
+    <div class="temp-track">
+      <div class="temp-fill" id="tempFill" style="width:65%"></div>
+    </div>
+    <div class="temp-labels">
+      <span>At Risk</span>
+      <span>Cooling</span>
+      <span>Stable</span>
+      <span>Warm</span>
+      <span>Trusted Partner</span>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="prog-wrap">
+    <div class="prog-track"><div class="prog-fill" id="pb" style="width:0%"></div></div>
+    <div class="prog-meta"><span id="pl">Situation 1 of 10</span><span id="sc">Temperature: Stable</span></div>
+  </div>
+
+  <!-- Game area -->
+  <div id="area"></div>
+
+</div>
+
+<script>
+const BASE_URL = "https://sapphireann.github.io/BLKPrinciplesforCSO/";
+
+// Temperature state
+let temp = 65;
+let score = { c:0, t:0 };
+let history = [];
+let idx = 0;
+let principleScore = {
+  anticipate:{c:0,t:0,label:"Anticipate needs"},
+  accuracy:  {c:0,t:0,label:"Accuracy & professionalism"},
+  matters:   {c:0,t:0,label:"What matters to client"},
+  proactive: {c:0,t:0,label:"Be proactive"},
+};
+
+function getTempStatus(t) {
+  if(t >= 86) return { label:"Trusted Partner", color:"var(--t-trust)", bg:"rgba(167,139,250,.15)" };
+  if(t >= 71) return { label:"Warm",            color:"var(--t-warm)",  bg:"rgba(16,185,129,.12)"  };
+  if(t >= 51) return { label:"Stable",          color:"var(--t-stable)",bg:"rgba(245,166,35,.12)"  };
+  if(t >= 31) return { label:"Cooling",         color:"var(--t-cool)",  bg:"rgba(249,115,22,.12)"  };
+  return              { label:"At Risk",         color:"var(--t-risk)",  bg:"rgba(239,68,68,.12)"   };
+}
+
+function updateGauge(newTemp, delta) {
+  temp = Math.max(0, Math.min(100, newTemp));
+  const st = getTempStatus(temp);
+  const fill = document.getElementById('tempFill');
+  const status = document.getElementById('gaugeStatus');
+  const points = document.getElementById('gaugePoints');
+  const dEl = document.getElementById('delta');
+  const wrap = document.getElementById('gaugeWrap');
+
+  fill.style.width = temp + '%';
+  fill.style.background = `linear-gradient(90deg, ${st.color}88, ${st.color})`;
+  status.textContent = st.label;
+  status.style.color = st.color;
+  status.style.borderColor = st.color;
+  status.style.background = st.bg;
+  points.textContent = temp + ' / 100';
+  wrap.style.borderColor = st.color + '44';
+
+  // delta flash
+  if(delta !== 0) {
+    dEl.textContent = (delta > 0 ? '+' : '') + delta;
+    dEl.className = 'delta show ' + (delta > 0 ? 'pos' : 'neg');
+    setTimeout(() => dEl.classList.remove('show'), 2000);
+  }
+
+  document.getElementById('sc').textContent = 'Temperature: ' + st.label;
+}
+
+// ── SCENARIOS ─────────────────────────────────────────────────────────────────
+const CARDS = [
+  {
+    tag:"Anticipating Needs",
+    moment:"Month 8 · Post go-live",
+    context:"Meridian's CFO mentioned in passing at last month's review that their board meets quarterly and needs a 'clean, non-technical summary' of portfolio performance. No formal request has come in. The next board meeting is in 3 weeks.",
+    stem:"You haven't received a formal reporting request. What do you do?",
+    principle:"anticipate",
+    choices:[
+      { text:"Wait for a formal request — you can't produce something without a brief",
+        outcome:"wrong", delta:-12,
+        feedback:"The CFO told you what they need — informally, but clearly. A CSO who waits for a formal brief after a client has signalled a need is making the client do your job. By the time the formal request arrives, you'll have 3 days to produce something they needed 3 weeks to prepare.",
+        tempNote:"Temperature drops. Client will notice that you didn't act on what they told you." },
+      { text:"Proactively reach out to the CFO, reference what they said, and propose a board summary format for their review before the meeting",
+        outcome:"correct", delta:12,
+        feedback:"This is exactly what 'anticipating needs before they are stated' means. The client said it once, informally. You heard it, acted on it, and came back with a proposal. This is the moment clients start thinking of their CSO as a trusted partner rather than a service desk.",
+        tempNote:"Temperature rises significantly. Client notices you listened and acted without being asked." },
+      { text:"Mention it to the RM and suggest they follow up with the client on what format they want",
+        outcome:"neutral", delta:-5,
+        feedback:"Delegating this to the RM misses the point — the CFO told you, not the RM. And routing it through the RM adds a delay. This is your client relationship to manage. The board summary is an operational service item, not a commercial conversation.",
+        tempNote:"Slight drop. The client gets something eventually but loses confidence that their CSO is proactive." },
+    ],
+    connection:{ text:"Connects to Client Health Signal Detector — a client who mentions board needs once and never hears back starts drifting.", game:"DISC_W4_RFP_Process.html", label:"Client Signal Detector →" }
+  },
+  {
+    tag:"Accuracy & Professionalism",
+    moment:"Month 8 · Reporting cycle",
+    context:"You've prepared Meridian's quarterly performance report. You're under time pressure — the RM is asking you to send it today. You spot a minor discrepancy in one of the Fixed Income figures — probably a rounding issue, but you're not 100% sure. The rest of the report looks fine.",
+    stem:"What do you do about the discrepancy before sending?",
+    principle:"accuracy",
+    choices:[
+      { text:"Send it — it's almost certainly a rounding issue and the RM needs it today",
+        outcome:"wrong", delta:-15,
+        feedback:"'Almost certainly' is not good enough for a client report. If the figure is wrong and the CFO presents it to their board, you've put incorrect data in front of pension trustees. Fixing it later creates more damage than a brief delay now. Accuracy always beats speed.",
+        tempNote:"Temperature drops sharply. If the error is discovered later, trust is severely damaged." },
+      { text:"Investigate the discrepancy, confirm the correct figure, then send with a brief note to the RM explaining the short delay",
+        outcome:"correct", delta:10,
+        feedback:"Correct. Accuracy and professionalism means never sending something you're not confident in. A brief, explained delay is far better than an error in a client report. The RM can manage a short wait; they cannot manage an error that reaches a client's board.",
+        tempNote:"Temperature rises. A client who always receives accurate reports builds deep trust." },
+      { text:"Flag the discrepancy in the email cover note when you send — 'we're checking one figure but wanted to get this to you'",
+        outcome:"neutral", delta:-8,
+        feedback:"Sending a report with a flagged error is worse than not sending it. You're delivering something you're not confident in and making the client aware of your uncertainty. Investigate first. If you need more time, send a brief holding note instead — not a report with a known issue.",
+        tempNote:"Drop. The client now knows the report may contain an error — this is anxiety-inducing for a pension fund CFO." },
+    ],
+    connection:{ text:"Connects to Reconciliations & CSO — accuracy in reporting starts with accurate reconciliation data.", game:"FIN_W4_Reconciliations.html", label:"Reconciliations & CSO →" }
+  },
+  {
+    tag:"What Matters to This Client",
+    moment:"Month 9 · Quarterly review prep",
+    context:"You're preparing for Meridian's quarterly review. The agenda has time for 3 focus topics. You know: (1) their Fixed Income sleeve had a strong quarter, (2) there was a minor cash reconciliation break last month that was resolved in 24 hours, (3) they've asked about ESG reporting before. You also know their board is under pressure on funding ratio.",
+    stem:"Which topics do you prioritise for the quarterly review agenda?",
+    principle:"matters",
+    choices:[
+      { text:"Fixed Income performance, ESG reporting update, and the reconciliation break we resolved",
+        outcome:"wrong", delta:-8,
+        feedback:"This agenda is built around what you want to show them, not what matters to them. A pension fund under board pressure on funding ratio doesn't just need performance data — they need to understand how the portfolio is positioned relative to their liabilities. ESG is interesting; funding ratio is urgent.",
+        tempNote:"Slight drop. Client senses the agenda wasn't built with their specific priorities in mind." },
+      { text:"Funding ratio positioning, Fixed Income performance and duration management, ESG reporting roadmap",
+        outcome:"correct", delta:12,
+        feedback:"You've built an agenda around what actually matters to this client right now. Funding ratio pressure is their board's concern — so it's your concern. Duration management connects FI performance to their liability-matching strategy. ESG is something they've asked about. This is a meeting built for Meridian, not a generic quarterly template.",
+        tempNote:"Temperature rises. Client feels genuinely understood — the meeting is relevant to their actual situation." },
+      { text:"Start the meeting with the reconciliation break to demonstrate transparency, then cover performance",
+        outcome:"neutral", delta:-4,
+        feedback:"Leading with a resolved minor reconciliation break signals you think it's a bigger deal than it was. It anchors the meeting in a negative that's already been handled. The client doesn't need reassurance about something they never knew was a problem — they need insight on what matters to them going forward.",
+        tempNote:"Small drop. The meeting opens on an odd note that slightly unsettles rather than builds confidence." },
+    ],
+    connection:{ text:"Connects to Client Type — knowing what matters requires knowing the specific pressures facing a pension fund vs an insurer vs an SWF.", game:"DISC_W2_Client_Type.html", label:"Client Type →" }
+  },
+  {
+    tag:"Proactive Communication",
+    moment:"Month 9 · Implementation of guideline change",
+    context:"Meridian requested a guideline change 3 weeks ago. You're coordinating it internally. The process is on track but will take another 10 days. You haven't updated the client since acknowledging receipt. They haven't chased you.",
+    stem:"They haven't asked — do you update them anyway?",
+    principle:"proactive",
+    choices:[
+      { text:"Wait for them to ask — they trust you and unnecessary updates create noise",
+        outcome:"wrong", delta:-10,
+        feedback:"The absence of chasing does not mean the absence of concern. Clients who are waiting on something important track it internally even if they don't chase. When you proactively update them, you confirm the process is moving. When you don't, they wonder — and in a pension fund, wondering turns into board questions.",
+        tempNote:"Drop. Client's internal tracking shows 3 weeks with no update. Confidence quietly erodes." },
+      { text:"Send a brief proactive update: process on track, expected completion in 10 days, no action needed from the client",
+        outcome:"correct", delta:11,
+        feedback:"Proactive communication means never making a client wonder about the status of something you're working on for them. Even 'on track, nothing to do' is a valuable message. It signals competence, professionalism, and care. Clients who don't have to chase become the ones who advocate for you.",
+        tempNote:"Temperature rises. Unsolicited status updates are one of the clearest signals of a trusted CSO." },
+      { text:"Ask the RM to check in with the client on their behalf",
+        outcome:"neutral", delta:-6,
+        feedback:"The guideline change is a CSO-owned workstream. Routing the update through the RM adds a layer of distance and signals you're not managing the relationship directly. The client will notice their CSO isn't the one communicating about their CSO's own workstream.",
+        tempNote:"Small drop. Client experiences the relationship as less direct than expected." },
+    ],
+    connection:{ text:"Connects to Change Events — guideline changes are a core CSO process. Communication is part of owning the change.", game:"ROLE_W3_Change_Events.html", label:"Change Events →" }
+  },
+  {
+    tag:"Accuracy & Professionalism",
+    moment:"Month 10 · Written communication",
+    context:"The client's Head of Operations has emailed asking for clarification on how their benchmark is calculated. You know the answer but it's technical — involves custom index methodology, rebalancing frequency, and currency hedging. You're writing the response.",
+    stem:"Which approach to the written response is correct?",
+    principle:"accuracy",
+    choices:[
+      { text:"Send a detailed technical explanation covering all three components with full methodology notes",
+        outcome:"neutral", delta:0,
+        feedback:"Accuracy is right but calibration matters. A Head of Operations asking for 'clarification' likely wants to understand, not to become an expert. A response so technical it needs its own explanation has missed the audience. Accurate content — but wrong level of detail for the stated purpose.",
+        tempNote:"Neutral. Client gets accurate information but it's harder to use than it needed to be." },
+      { text:"Send a clear, plain-language explanation of how their specific benchmark works, offer to schedule a brief call if they need more detail",
+        outcome:"correct", delta:9,
+        feedback:"Communicate with Impact means calibrating the response to the audience and their actual need. A Head of Operations needs to understand — not to study. A clear explanation that answers the question directly, with an offer of more depth if needed, is accurate, professional, and client-appropriate.",
+        tempNote:"Temperature rises. Client feels well-served — the answer was clear, complete, and offered the right next step." },
+      { text:"Forward the query to the PM team — benchmark methodology is their domain",
+        outcome:"wrong", delta:-11,
+        feedback:"A CSO who forwards straightforward benchmark queries to the PM team is not owning their relationship. You know the answer. Routing it to the PM adds delay, creates distance, and signals you're not the knowledgeable partner the client expects. Know your client's mandate well enough to explain it.",
+        tempNote:"Drop. The client now questions whether their CSO understands their mandate." },
+    ],
+    connection:{ text:"Connects to Financial Concepts for CSO — knowing your client's benchmark and asset class is what makes accurate communication possible.", game:"FIN_W2_Financial_Concepts.html", label:"Financial Concepts →" }
+  },
+  {
+    tag:"What Matters to This Client",
+    moment:"Month 10 · Unexpected market event",
+    context:"Global markets have had a sharp sell-off this week. Meridian's portfolio is down 4% on the week — within mandate guidelines, no breaches. You've not been asked to do anything. Other clients haven't reached out either.",
+    stem:"Do you reach out to Meridian — and if so, what do you say?",
+    principle:"matters",
+    choices:[
+      { text:"Wait — no breach, no client query, no action needed",
+        outcome:"wrong", delta:-13,
+        feedback:"A pension fund trustee seeing a 4% portfolio drop in a week is not sitting quietly. They're asking their investment officer questions. The investment officer is asking you. Not proactively reaching out during market stress signals you either didn't notice or didn't think it mattered to them. Both are damaging.",
+        tempNote:"Significant drop. Market stress is exactly when clients measure their CSO — silence signals indifference." },
+      { text:"Reach out proactively: acknowledge the market conditions, confirm portfolio is within mandate guidelines, and offer to schedule a call with the PM if the client wants to discuss positioning",
+        outcome:"correct", delta:14,
+        feedback:"This is the highest-value communication moment in a client relationship. You're not delivering bad news — you're delivering context and reassurance. You've confirmed no breach, offered access to the PM for investment discussion (which is the PM's role), and signalled you're watching. This is what trusted partners do.",
+        tempNote:"Largest temperature gain. Client identifies this as a defining moment of trust." },
+      { text:"Ask the RM to send a market update to all affected clients",
+        outcome:"neutral", delta:-5,
+        feedback:"A generic market update to all clients is not the same as a direct message to Meridian that acknowledges their specific situation. The client has a unique mandate, unique allocation, and unique concerns. A blanket email signals they're one of many rather than a relationship being actively managed.",
+        tempNote:"Small drop. Client receives a generic communication when they needed a personal one." },
+    ],
+    connection:{ text:"Connects to Client Health Signal Detector — clients who aren't contacted during stress become drifting clients.", game:"DISC_W3_ClientMatching.html", label:"Client Matching →" }
+  },
+  {
+    tag:"Anticipating Needs",
+    moment:"Month 11 · Personnel change",
+    context:"You've just heard informally from the RM that Meridian's Head of Operations — your primary day-to-day contact — is leaving the firm. No formal notification has been received. The RM heard it through their network.",
+    stem:"What do you do with this informal intelligence?",
+    principle:"anticipate",
+    choices:[
+      { text:"Wait for a formal notification from the client before doing anything",
+        outcome:"wrong", delta:-7,
+        feedback:"A key contact leaving is a significant relationship event. Waiting for the formal notification is passive — by the time it arrives, the outgoing contact may already be in their notice period with limited time to facilitate handovers. Getting ahead of this protects the relationship.",
+        tempNote:"Small drop. An opportunity to demonstrate proactive partnership is missed." },
+      { text:"Reach out to the outgoing contact now — acknowledge you've heard they may be moving on, express appreciation, and offer to support any handover to their successor",
+        outcome:"correct", delta:10,
+        feedback:"Acting on informal intelligence to support a smooth transition is exactly what a proactive CSO does. Reaching out warmly to the outgoing contact — rather than waiting — creates goodwill, enables a proper handover, and positions you well with whoever succeeds them. Anticipation means acting before the situation becomes a gap.",
+        tempNote:"Temperature rises. Client side notices that you were proactive about continuity before they had to ask." },
+      { text:"Alert the RM to the change and ask them to manage the transition",
+        outcome:"neutral", delta:-4,
+        feedback:"The RM knowing is useful — but the day-to-day operational relationship belongs to you. A contact change on your client is a CSO event to manage. The RM can support, but routing the entire thing to them signals you don't own your own client relationships.",
+        tempNote:"Neutral. Transition happens but the CSO is not seen as the proactive steward." },
+    ],
+    connection:{ text:"Connects to Who Does It? RM vs CSO — managing operational relationship continuity is CSO territory.", game:"ROLE_W2_RM_vs_CSO.html", label:"RM vs CSO →" }
+  },
+  {
+    tag:"Proactive Communication",
+    moment:"Month 11 · Reporting error discovered",
+    context:"You discover that a fee invoice sent to Meridian last month contained an overcharge of £4,200 due to an incorrect rate applied. The client has not noticed or queried it. You've already confirmed the error with Finance.",
+    stem:"How do you handle the communication to the client?",
+    principle:"proactive",
+    choices:[
+      { text:"Correct the next invoice by crediting the overpayment — the client will see it reflected without needing a separate conversation",
+        outcome:"wrong", delta:-16,
+        feedback:"Silently correcting an error in the next invoice without disclosure is a serious trust violation. The client has been overcharged. They have a right to know — and to know promptly, not at a time that suits you. When they eventually notice (and they may), discovering the silent correction damages trust far more than the original error would have.",
+        tempNote:"Significant drop — the largest negative. If discovered, this can end a relationship." },
+      { text:"Call the client first, explain the error clearly, confirm the correction and timeline for credit, and follow up in writing",
+        outcome:"correct", delta:13,
+        feedback:"Proactive disclosure of errors — especially financial ones — is one of the highest-trust behaviours a CSO can demonstrate. The client didn't know. You could have hidden it. You didn't. Calling first (not emailing first) is the right approach for something of this seriousness. The follow-up in writing creates the record.",
+        tempNote:"Large temperature gain. Clients who see their CSO disclose proactively become the strongest advocates." },
+      { text:"Email the client with a formal notification of the error and the corrective action",
+        outcome:"neutral", delta:4,
+        feedback:"Email disclosure is better than silence — but for a financial error of this materiality, a call should come first. An email can feel impersonal when someone has been overcharged. Call to explain, then confirm in writing. The sequence matters as much as the content.",
+        tempNote:"Small gain — the right intent but the wrong channel for the first communication." },
+    ],
+    connection:{ text:"Connects to Complaints Processing — how you communicate errors determines whether they become complaints.", game:"ROLE_W4_Complaints.html", label:"Complaints Processing →" }
+  },
+  {
+    tag:"What Matters to This Client",
+    moment:"Month 12 · Year-end review",
+    context:"It's Meridian's first year-end review. The relationship has gone well overall. You have 45 minutes. The COO and CFO will both attend. You know the CFO cares deeply about cost efficiency; the COO cares about operational risk and process quality.",
+    stem:"How do you structure the year-end review?",
+    principle:"matters",
+    choices:[
+      { text:"Focus the review on performance — that's what drives the mandate renewal decision",
+        outcome:"wrong", delta:-10,
+        feedback:"Performance is an investment conversation — it's the PM's territory, not the CSO's. A year-end review led by the CSO should demonstrate the quality of the operational relationship: what you delivered, how you managed problems, what you're improving. Spending a CSO-led meeting on performance signals you don't understand your own role.",
+        tempNote:"Drop. Client senses the CSO doesn't have a clear view of their own value in the relationship." },
+      { text:"Structure around what each senior stakeholder cares about: cost efficiency and value delivered for the CFO, operational risk management and process quality for the COO — and service enhancements coming in year 2",
+        outcome:"correct", delta:12,
+        feedback:"A year-end review that maps to what each attendee cares about demonstrates genuine client knowledge. The CFO gets cost and value. The COO gets operational excellence. Both get a reason to renew. And service enhancements give them a forward-looking reason to be invested. This is Know Your Client applied to a room.",
+        tempNote:"Temperature rises. Both stakeholders feel the meeting was designed for them personally." },
+      { text:"Run through the year chronologically — all the events, changes, and resolutions you've managed",
+        outcome:"neutral", delta:-3,
+        feedback:"A chronological retrospective is useful for internal records but not optimal for a year-end client meeting. It centres the narrative on you rather than on what delivered value for the client. Structure around outcomes and what matters to them — not around the sequence of your work.",
+        tempNote:"Small drop. Meeting is informative but doesn't create a strong sense of strategic partnership." },
+    ],
+    connection:{ text:"Connects to Asset Class & Client Matching — knowing what matters to a pension fund CFO vs COO is foundational.", game:"FIN_W3_Asset_Classes_Scenarios.html", label:"Asset Classes →" }
+  },
+  {
+    tag:"Anticipating Needs",
+    moment:"Month 12 · Renewal approaching",
+    context:"Meridian's mandate contract expires in 4 months. No renewal conversation has been formally initiated. The RM is focused on new business. The client hasn't raised renewal.",
+    stem:"What does a proactive CSO do at this point?",
+    principle:"anticipate",
+    choices:[
+      { text:"Leave renewal to the RM — it's a commercial decision",
+        outcome:"wrong", delta:-9,
+        feedback:"While the commercial terms of renewal are RM territory, the CSO has a clear role: ensuring the operational relationship is so strong that renewal is a natural outcome, and flagging early if there are any service issues that could create risk. A CSO who is invisible at renewal time is not managing the full lifecycle.",
+        tempNote:"Drop. Client doesn't feel a sense of continuity being actively managed." },
+      { text:"Internally flag the upcoming renewal to the RM, conduct an honest service quality review, address any gaps, and consider whether a client satisfaction conversation would be appropriate before the formal renewal process",
+        outcome:"correct", delta:11,
+        feedback:"This is the full-lifecycle CSO. You're not waiting for renewal to be initiated — you're scanning the horizon, flagging it internally, auditing service quality, and creating the conditions for a positive renewal. The CSO who does this is the one whose clients renew without hesitation.",
+        tempNote:"Temperature rises. Client notices that their CSO is actively thinking about the long-term relationship." },
+      { text:"Ask the client directly whether they plan to renew — better to know early",
+        outcome:"neutral", delta:-4,
+        feedback:"Asking a client if they plan to renew before the commercial conversation has been initiated puts the client in an awkward position and might signal insecurity. The internal conversation with the RM comes first. Then, if appropriate, a client satisfaction conversation — not a renewal question.",
+        tempNote:"Slight drop. The approach is proactive in intent but slightly awkward in execution." },
+    ],
+    connection:{ text:"Connects to Client Health Signal Detector — clients approaching renewal who haven't been proactively engaged are drift signals.", game:"DISC_W4_RFP_Process.html", label:"RFP & Client Discovery →" }
+  },
+];
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function upd(){
+  document.getElementById('pb').style.width=(idx/CARDS.length*100)+'%';
+  document.getElementById('pl').textContent='Situation '+(idx+1)+' of '+CARDS.length;
+}
+
+function render(){
+  const c=CARDS[idx]; upd();
+  document.getElementById('area').innerHTML=`
+    <div class="card" id="mc">
+      <div class="card-top">
+        <span class="tag">${c.tag}</span>
+        <span class="card-moment">${c.moment}</span>
+      </div>
+      <div class="ctx-box">
+        <div class="ctx-label">Situation</div>
+        <div class="ctx-text">${c.context}</div>
+      </div>
+      <div class="card-body"><p class="card-q">"${c.stem}"</p></div>
+      <div class="choices">
+        ${c.choices.map((ch,i)=>`<button class="choice" id="ch${i}" onclick="pick(${i})">
+          <span class="letter">${String.fromCharCode(65+i)})</span> ${ch.text}
+        </button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function pick(i){
+  const c=CARDS[idx];
+  const ch=c.choices[i];
+  const delta=ch.delta;
+  const ok=ch.outcome==='correct';
+  const neutral=ch.outcome==='neutral';
+
+  score.t++;
+  if(ok) score.c++;
+  if(c.principle&&principleScore[c.principle]){
+    principleScore[c.principle].t++;
+    if(ok) principleScore[c.principle].c++;
+  }
+
+  history.push({c,i,ok,neutral,delta});
+
+  // Style buttons
+  for(let j=0;j<c.choices.length;j++){
+    const b=document.getElementById('ch'+j); b.disabled=true;
+    if(c.choices[j].outcome==='correct') b.classList.add('correct');
+    else if(j===i&&!ok&&!neutral) b.classList.add('wrong');
+    else if(j===i&&neutral) b.classList.add('neutral');
+  }
+
+  // Update temperature
+  const newTemp = temp + delta;
+  const prevStatus = getTempStatus(temp).label;
+  updateGauge(newTemp, delta);
+  const newStatus = getTempStatus(temp).label;
+
+  // Card border
+  const mc=document.getElementById('mc');
+  mc.style.borderColor = ok?'var(--ok)':neutral?'var(--gold)':'var(--bad)';
+
+  // Temp change box
+  const tcColor = delta>0?'var(--ok)':delta<0?'var(--bad)':'var(--gold)';
+  const tcBg    = delta>0?'rgba(16,185,129,.1)':delta<0?'rgba(239,68,68,.08)':'rgba(245,166,35,.08)';
+  const tcArrow = delta>0?'↑':'↓';
+  const statusChange = prevStatus!==newStatus?` → ${newStatus}`:'';
+  const tcHtml = `<div class="temp-change-box" style="background:${tcBg};border:1px solid ${tcColor}44">
+    <span class="tcb-arrow" style="color:${tcColor}">${tcArrow}</span>
+    <span class="tcb-txt" style="color:${tcColor}">Temperature ${delta>0?'rises':delta<0?'drops':'unchanged'} ${Math.abs(delta)} pts${statusChange}</span>
+  </div>`;
+
+  // Connection callout
+  const connHtml = c.connection ? `<div class="connection">
+    <span class="conn-icon">🔗</span>
+    <div class="conn-txt">${c.connection.text}<br>
+      <a class="conn-link" href="${BASE_URL+c.connection.game}" target="_blank">${c.connection.label}</a>
+    </div>
+  </div>` : '';
+
+  // Explanation
+  const expl=document.createElement('div');
+  expl.className='expl';
+  const ac=ok?'var(--ok)':neutral?'var(--gold)':'var(--bad)';
+  expl.style.cssText=`border-left-color:${ac};background:${ok?'rgba(16,185,129,.1)':neutral?'rgba(245,166,35,.08)':'rgba(239,68,68,.08)'}`;
+  expl.innerHTML=`
+    <div class="expl-hdr" style="color:${ac}">${ok?'✓ Strong':'↕ Acceptable — but not the strongest choice'}</div>
+    <p class="expl-txt">${ch.feedback}</p>
+    ${tcHtml}
+    <div class="principle-box"><div class="principle-lbl">Why the temperature moved</div><p class="principle-txt">${ch.tempNote}</p></div>
+    ${connHtml}`;
+  mc.querySelector('.choices').after(expl);
+
+  const nb=document.createElement('button');
+  nb.className='btn-next';
+  nb.textContent=idx+1>=CARDS.length?'VIEW RESULTS →':'NEXT SITUATION →';
+  nb.onclick=next; expl.after(nb);
+}
+
+function next(){idx++; idx>=CARDS.length?done():render();}
+
+function done(){
+  const finalSt = getTempStatus(temp);
+  const scorePct = Math.round(score.c/CARDS.length*100);
+  const [g,gc] = scorePct>=80?["Trusted Partner","var(--ok)"]:scorePct>=60?["Developing","var(--gold)"]:["Needs Practice","var(--bad)"];
+
+  const ppRows = Object.values(principleScore).filter(p=>p.t>0).map(p=>{
+    const pct = Math.round(p.c/p.t*100);
+    return `<div class="pp-row"><span class="pp-lbl">${p.label}</span><div class="pp-bar"><div class="pp-fill" style="width:${pct}%"></div></div><span class="pp-n">${p.c}/${p.t}</span></div>`;
+  }).join('');
+
+  const misses = history.filter(h=>!h.ok&&!h.neutral);
+  const rev = misses.length?`<div class="review-list">${misses.map(h=>`
+    <div class="review-item">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--comm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">${h.c.tag}</div>
+      <div style="font-size:12px;color:var(--text);margin-bottom:3px">${h.c.context.slice(0,80)}…</div>
+      <div style="font-size:11px;color:var(--ok)">${h.c.choices.find(c=>c.outcome==='correct').text.slice(0,80)}…</div>
+    </div>`).join('')}</div>`:'';
+
+  document.getElementById('area').innerHTML=`<div class="results">
+    <div class="results-top">
+      <div class="results-eyebrow">Year Complete · Meridian Pension Fund</div>
+      <div class="results-score" style="color:${finalSt.color}">${temp}</div>
+      <div class="results-grade" style="color:${finalSt.color}">Final Temperature: ${finalSt.label}</div>
+      <p class="results-sub">${score.c} of ${CARDS.length} optimal choices · ${scorePct}% accuracy</p>
+    </div>
+    <div class="final-temp">
+      <div class="ft-label">Final temperature reading</div>
+      <div class="temp-track"><div class="temp-fill" style="width:${temp}%;background:linear-gradient(90deg,${finalSt.color}88,${finalSt.color})"></div></div>
+      <div class="temp-labels"><span>At Risk</span><span>Cooling</span><span>Stable</span><span>Warm</span><span>Trusted Partner</span></div>
+    </div>
+    <div class="principles-profile"><div class="pp-title">Communication Principle Profile</div>${ppRows}</div>
+    ${rev}
+    <button class="btn-restart" onclick="restart()">RETAKE →</button>
+  </div>`;
+
+  // Update gauge to final state
+  updateGauge(temp, 0);
+}
+
+function restart(){
+  temp=65; score={c:0,t:0}; history=[]; idx=0;
+  Object.values(principleScore).forEach(p=>{p.c=0;p.t=0;});
+  updateGauge(65,0);
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
