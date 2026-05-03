@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Complaints Processing</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#06080d;--panel:#0d1420;--surface:#111928;--border:#182438;--hi:#1e3050;
+  --text:#cdd8f0;--muted:#4a6080;--dim:#090d14;
+  --ok:#10b981;--bad:#ef4444;--gold:#f5a623;
+  --ok-d:rgba(16,185,129,0.12);--bad-d:rgba(239,68,68,0.1);--gold-d:rgba(245,166,35,0.1);
+  --c-know:#f472b6;--c-own:#fb923c;--c-comm:#a78bfa;--c-risk:#38bdf8;--c-seek:#4ade80;
+}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(43,127,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(43,127,255,0.03) 1px,transparent 1px);
+  background-size:60px 60px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:36px 18px 60px}
+.hdr{margin-bottom:28px}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.title{font-family:'Playfair Display',serif;font-size:clamp(24px,4vw,36px);line-height:1.15;color:var(--text);margin-bottom:10px}
+.sub{font-size:13px;color:var(--muted);line-height:1.7;max-width:540px;margin-bottom:20px}
+.comp-strip{display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:20px}
+.comp-strip-lbl{width:100%;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.cpill{display:flex;align-items:center;gap:5px;font-size:10px;font-family:'IBM Plex Mono',monospace;padding:3px 9px;border-radius:20px;border:1px solid currentColor}
+.cdot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.prog-wrap{margin-bottom:24px}
+.prog-track{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:7px}
+.prog-fill{height:100%;border-radius:2px;transition:width .5s ease}
+.prog-meta{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.streak{color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:10px}
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color .3s;animation:slideUp .32s ease both}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.card-top{padding:10px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.tag{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.card-lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.card-comp-bar{padding:8px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.card-comp-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.card-comp-pills{display:flex;gap:6px;flex-wrap:wrap}
+.card-cpill{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:2px 8px;border-radius:10px;border:1px solid;letter-spacing:.06em;font-weight:600}
+.card-body{padding:28px 22px 22px}
+.card-q{font-family:'Playfair Display',serif;font-size:clamp(15px,2.5vw,20px);line-height:1.6;font-style:italic}
+/* Choices */
+.choices{padding:0 22px 18px;display:flex;flex-direction:column;gap:9px}
+.choice{display:flex;gap:10px;padding:13px 14px;border-radius:10px;font-size:13px;text-align:left;cursor:pointer;transition:all .2s;border:1px solid var(--border);color:var(--muted);background:transparent;line-height:1.5}
+.choice:not(:disabled):hover{border-color:var(--hi);color:var(--text)}
+.choice .letter{font-family:'IBM Plex Mono',monospace;font-size:11px;flex-shrink:0}
+.choice.correct{background:var(--ok-d);border-color:var(--ok);color:var(--ok)}
+.choice.wrong{background:var(--bad-d);border-color:var(--bad);color:var(--bad)}
+/* Sort buttons */
+.sort-btns{padding:0 22px 18px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.sort-btn{padding:14px 8px;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:all .22s;border:1px solid var(--border);color:var(--muted);background:transparent}
+.sort-btn:not(:disabled):hover{transform:translateY(-2px)}
+/* Explanation */
+.expl{margin:0 22px 16px;padding:14px 16px;border-radius:10px;border-left:3px solid;animation:slideUp .28s ease}
+.expl-hdr{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+.expl-txt{font-size:13.5px;line-height:1.7;color:var(--text);margin-bottom:10px}
+.comp-insight{padding:10px 12px;border-radius:8px;border:1px solid;margin-top:8px}
+.comp-insight-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px;font-weight:600}
+.comp-insight-txt{font-size:12px;line-height:1.6;font-style:italic}
+/* Next / Restart */
+.btn-next{display:block;width:calc(100% - 44px);margin:0 22px 22px;padding:13px;background:transparent;border:1px solid var(--hi);border-radius:10px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.1em;cursor:pointer;transition:background .2s}
+.btn-next:hover{background:var(--border)}
+/* Flash */
+.flash-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 22px;min-height:170px;cursor:pointer;transition:border-color .3s;animation:slideUp .32s ease}
+.flash-hint{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+.flash-q{font-family:'Playfair Display',serif;font-size:clamp(17px,2.5vw,21px);line-height:1.55;font-style:italic}
+.flash-tap{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-top:16px}
+.flash-back-lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px}
+.flash-ans{font-size:14.5px;line-height:1.75;color:var(--text);margin-bottom:14px}
+.flash-why{padding:12px 14px;border-radius:8px;margin-top:4px}
+.flash-why-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px;font-weight:600}
+.flash-why-txt{font-size:12px;line-height:1.6;font-style:italic;color:var(--text)}
+.mark-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.mark-btn{padding:12px;border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:12px;cursor:pointer;transition:all .2s;border:1px solid;background:transparent}
+/* Pulse */
+.client-hdr{padding:16px 22px;border-bottom:1px solid var(--border)}
+.client-name{font-size:19px;font-weight:500;margin-bottom:3px}
+.client-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+.client-ctx{padding:10px 22px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);font-style:italic;line-height:1.5;border-left:2px solid var(--hi)}
+.signals-list{padding:0 22px}
+.signal-row{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
+.signal-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.signal-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.signal-val{font-size:13px;color:var(--text)}
+.diagnose-btns{padding:14px 22px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.d-btn{padding:12px 6px;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;transition:all .22s;border:1px solid var(--border);color:var(--muted);background:transparent}
+.d-btn:not(:disabled):hover{transform:translateY(-2px)}
+/* Results */
+.results{text-align:center;padding:44px 16px;animation:slideUp .4s ease}
+.results-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.results-score{font-family:'Playfair Display',serif;font-size:80px;font-weight:700;line-height:1}
+.results-grade{font-size:18px;margin-top:6px;margin-bottom:4px}
+.results-sub{font-size:13px;color:var(--muted);margin-bottom:28px}
+.comp-profile{margin-bottom:20px;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;text-align:left}
+.comp-profile-title{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.comp-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.comp-row-lbl{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--muted);width:175px;flex-shrink:0}
+.comp-row-bar{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.comp-row-fill{height:100%;border-radius:2px;transition:width .8s ease}
+.comp-row-n{font-family:'IBM Plex Mono',monospace;font-size:10px;width:30px;text-align:right;flex-shrink:0}
+.review-list{text-align:left;margin-bottom:20px;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.review-item{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);font-size:12.5px}
+.review-item:last-child{border-bottom:none}
+.review-q{color:var(--text);line-height:1.4;margin-bottom:3px}
+.review-ans{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+.btn-restart{width:100%;padding:14px;background:var(--surface);border:1px solid var(--hi);border-radius:10px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.1em;cursor:pointer;transition:background .2s}
+.btn-restart:hover{background:var(--panel)}
+.legend{display:flex;gap:22px;margin-top:18px;flex-wrap:wrap;justify-content:center}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+.leg-dot{width:8px;height:8px;border-radius:50%}
+@media(max-width:480px){.sort-btns,.diagnose-btns{grid-template-columns:1fr 1fr 1fr;gap:6px}.sort-btn,.d-btn{font-size:12px;padding:11px 4px}}
+
+:root{--accent:#fb923c}
+.prog-fill{background:linear-gradient(90deg,#fb923c,var(--gold))}
+.tag{color:#fb923c}
+.flash-card.open{border-color:#fb923c}
+.flash-back-lbl{color:#fb923c}
+.flash-why{background:#fb923c18;border:1px solid #fb923c44}
+.flash-why-lbl{color:#fb923c}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hdr">
+  <div class="eyebrow">Week 4 · CSO Role · CSO EMEA</div>
+  <h1 class="title">Complaints Processing</h1>
+  <p class="sub">Complaints are where the CSO's judgment is most visible. These scenarios test whether you can navigate EMEA complaints policy, own the communication, and protect both the client and BlackRock.</p>
+  <div class="comp-strip"><div class="comp-strip-lbl">Core Competencies</div><span class="cpill" style="color:var(--c-comm)"><span class="cdot"></span>Communicate with Impact</span><span class="cpill" style="color:var(--c-risk)"><span class="cdot"></span>Recognize & Remediate Risk</span><span class="cpill" style="color:var(--c-own)"><span class="cdot"></span>Own Outcomes</span></div>
+</div>
+<div class="prog-wrap"><div class="prog-track"><div class="prog-fill" id="pb" style="width:0%"></div></div><div class="prog-meta"><span id="pl">Scenario 1 of 5</span><span id="sc">0 / 0 correct</span></div></div>
+<div id="area"></div>
+<script>
+const CARDS=[{"tag":"EMEA Policy","stem":"A client sends a strongly worded email saying BlackRock has failed to deliver a report they've been waiting three weeks for. They call it a 'formal complaint'. What is your immediate first step?","choices":[{"text":"Apologise and promise to deliver the report within 24 hours","correct":false,"feedback":"Delivery promises before investigation are dangerous. You don't yet know why the report was delayed — promising 24 hours without confirming it's achievable creates a second failure."},{"text":"Acknowledge the complaint formally, follow the EMEA Client Complaints policy, notify the full coverage team (RM + CSO), and investigate the root cause","correct":true,"feedback":"Correct. EMEA Client Complaints policy requires formal acknowledgment and notification of the full coverage team. The CSO must acknowledge receipt promptly, initiate the policy process, and investigate before communicating resolution."},{"text":"Investigate first, then acknowledge — the client doesn't need to hear from you until you have an answer","correct":false,"feedback":"The client needs acknowledgment immediately — not when you have the answer. Prompt acknowledgment is itself a service standard. It signals the complaint has been received and is being handled."}],"compInsights":{"risk":"EMEA Client Complaints policy is not optional. Following it protects both the client and BlackRock legally and reputationally. The CSO who fails to notify the full coverage team creates a governance gap."}},{"tag":"Root Cause","stem":"After investigating, you discover the reporting delay was caused by an incorrect distribution list that was set up at implementation six months ago. The client has never received this report. How do you frame your communication to the client?","choices":[{"text":"'There was a system error on our end — we've now fixed it and all future reports will be sent correctly'","correct":false,"feedback":"'System error' is vague and dishonest if the actual cause was a distribution list setup error. The client deserves an accurate explanation — vague language erodes trust and often creates further questions."},{"text":"'We identified that the report distribution list was incorrectly configured at implementation. We've corrected it, will send all historical reports immediately, and will put a check in place to prevent recurrence'","correct":true,"feedback":"Correct. Accurate, specific, and solution-oriented. The client knows what went wrong, what you've done about it, and what prevents it happening again. This is how trust is rebuilt after a failure."},{"text":"'Unfortunately this was a legacy issue from before your current CSO team — we're committed to doing better going forward'","correct":false,"feedback":"Attributing the error to a previous team — even accurately — reads as deflection to the client. Own Outcomes means owning the resolution regardless of who caused the original error."}],"compInsights":{"comm":"Communicate with Impact includes honesty about what went wrong. Vague language in complaint responses prolongs the client's concern — accurate language resolves it."}},{"tag":"Operating Events","stem":"You identify that a cash break in a client's account is the result of a settlement failure on BlackRock's side — not the custodian's. This constitutes an Operating Event. What do you do?","choices":[{"text":"Fix the break quietly and note it in your records — the client doesn't need to know if it's resolved quickly","correct":false,"feedback":"Operating Event Management requires formal notification regardless of resolution speed. Undisclosed operational errors — even resolved ones — create audit and compliance risk. The process exists for a reason."},{"text":"Follow the Operating Event Management process: identify the event, notify the full coverage team, document it formally, and communicate to the client per policy","correct":true,"feedback":"Correct. Operating events must be formally logged and reported. The CSO identifies, notifies the full coverage team (RM + CSO), follows the documented process, and communicates to the client. Speed of resolution doesn't remove the reporting obligation."},{"text":"Escalate immediately to senior management and halt all activity on the account","correct":false,"feedback":"Not all operating events require senior escalation or account halting. The CSO follows the Operating Event Management policy — which defines escalation thresholds — rather than over-escalating every event."}],"compInsights":{"risk":"Recognize & Remediate Risk includes recognising when an event constitutes a formal Operating Event — and following the process regardless of whether the error has been resolved."}},{"tag":"Client Communication","stem":"A client is very upset on a call — raising their voice and making unreasonable demands. They want immediate escalation to 'the head of BlackRock'. How do you respond?","choices":[{"text":"Agree to escalate immediately to senior leadership to de-escalate the situation","correct":false,"feedback":"Agreeing to escalation you're not authorised to initiate — or escalating inappropriately — creates a bigger problem. The CSO needs to manage the client's emotion first, then handle escalation appropriately."},{"text":"Remain calm, acknowledge their frustration without matching the emotional register, clarify what you can commit to, and advise on the appropriate escalation path if they wish to pursue it","correct":true,"feedback":"Correct. The CSO de-escalates first by remaining calm and acknowledging the frustration. Then they clarify what they can actually commit to — and if the client wants to formally escalate, explain the proper route honestly."},{"text":"End the call and follow up in writing — phone conversations are too hard to manage when a client is upset","correct":false,"feedback":"Ending the call abruptly escalates rather than de-escalates. The CSO's job is to manage difficult client conversations — not avoid them."}],"compInsights":{"comm":"Communicate with Impact under pressure means remaining professional when the client isn't. Your composure is itself a service signal — and often the thing that prevents a recoverable situation from becoming unrecoverable."}},{"tag":"PCG Complaint","stem":"A client complains that their portfolio had a breach that 'BlackRock didn't tell them about for three days'. You look into it and confirm the delay was genuine. Who should have notified the client — and when?","choices":[{"text":"The PM team — breaches are investment decisions and sit with the investment side","correct":false,"feedback":"PCG breach communications involve both the CSO and the RM. The CSO monitors the PCG dashboard, coordinates internally, and the RM leads external communications for active breaches. The PM team is not the client communication lead."},{"text":"The CSO should have identified the active breach via PCG monitoring and coordinated with the RM to notify the client immediately — not three days later","correct":true,"feedback":"Correct. PCG monitoring is a CSO responsibility. An active breach should be identified same-day via the PCG dashboard and communicated to the client promptly — with the RM leading external communications. Three days is a failure of both the monitoring and escalation processes."},{"text":"The Compliance team — breaches are regulatory matters","correct":false,"feedback":"Compliance is informed of breaches but does not lead client communications. The CSO/RM partnership owns the client communication for PCG breaches."}],"compInsights":{"risk":"Recognize & Remediate Risk means the CSO is actively monitoring the PCG dashboard — not waiting to be told about a breach. Three days is a monitoring failure, not just a communication failure."}}];
+const COMPS=["comm","risk","own"];
+let idx=0,score={c:0,t:0},history=[],streak=0;
+let compScore={know:{c:0,t:0},own:{c:0,t:0},comm:{c:0,t:0},risk:{c:0,t:0},seek:{c:0,t:0}};
+const cmap={know:"var(--c-know)",own:"var(--c-own)",comm:"var(--c-comm)",risk:"var(--c-risk)",seek:"var(--c-seek)"};
+const cnames={know:"Know Your Client",own:"Own Outcomes",comm:"Communicate with Impact",risk:"Recognize & Remediate Risk",seek:"Seek, Scale & Influence"};
+function upd(){document.getElementById('pb').style.width=(idx/CARDS.length*100)+'%';document.getElementById('pl').textContent='Scenario '+(idx+1)+' of '+CARDS.length;document.getElementById('sc').textContent=score.c+' / '+score.t+' correct';}
+function render(){
+  const c=CARDS[idx];upd();
+  const cBar=c.comps?c.comps.map(id=>`<span class="card-cpill" style="color:${cmap[id]};border-color:${cmap[id]}">${cnames[id]}</span>`).join(''):'';
+  const chs=c.choices.map((ch,i)=>`<button class="choice" id="ch${i}" onclick="pick(${i})"><span class="letter">${String.fromCharCode(65+i)})</span> ${ch.text}</button>`).join('');
+  document.getElementById('area').innerHTML=`<div class="card" id="mc">
+    <div class="card-top"><span class="tag">${c.tag||'Scenario'}</span><span class="card-lbl">WHAT DO YOU DO?</span></div>
+    ${cBar?`<div class="card-comp-bar"><span class="card-comp-lbl">Competencies</span><div class="card-comp-pills">${cBar}</div></div>`:''}
+    <div class="card-body"><p class="card-q">"${c.stem}"</p></div>
+    <div class="choices">${chs}</div>
+  </div>`;
+}
+function pick(i){
+  const c=CARDS[idx];const ok=c.choices[i].correct;
+  score.t++;ok?(score.c++,streak++):(streak=0);
+  const allC=c.comps||COMPS;
+  allC.forEach(id=>{compScore[id].t++;if(ok)compScore[id].c++;});
+  history.push({c,i,ok});
+  for(let j=0;j<c.choices.length;j++){const b=document.getElementById('ch'+j);b.disabled=true;if(c.choices[j].correct)b.classList.add('correct');else if(j===i&&!ok)b.classList.add('wrong');}
+  const ac=ok?'var(--ok)':'var(--bad)';
+  document.getElementById('mc').style.borderColor=ac;
+  const insightItems=(c.compInsights||{});
+  const iHtml=Object.entries(insightItems).map(([id,txt])=>`<div class="comp-insight" style="border-color:${cmap[id]};background:${cmap[id]}18"><div class="comp-insight-lbl" style="color:${cmap[id]}">${cnames[id]}</div><p class="comp-insight-txt">${txt}</p></div>`).join('');
+  const expl=document.createElement('div');expl.className='expl';
+  expl.style.cssText=`border-left-color:${ac};background:${ok?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.08)'}`;
+  expl.innerHTML=`<div class="expl-hdr" style="color:${ok?'var(--ok)':'var(--bad)'}">${ok?'✓ Correct':'✗ Not quite'}</div><p class="expl-txt">${c.choices[i].feedback}</p>${iHtml?`<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">${iHtml}</div>`:``}`;
+  document.getElementById('mc').querySelector('.choices').after(expl);
+  const nb=document.createElement('button');nb.className='btn-next';nb.textContent=idx+1>=CARDS.length?'VIEW RESULTS →':'NEXT →';nb.onclick=next;expl.after(nb);
+  document.getElementById('sc').textContent=score.c+' / '+score.t+' correct';
+}
+function next(){idx++;idx>=CARDS.length?done():render();}
+
+function buildCompProfile(compScore){
+  const defs={know:{l:"Know Your Client",c:"var(--c-know)"},own:{l:"Own Outcomes",c:"var(--c-own)"},comm:{l:"Communicate with Impact",c:"var(--c-comm)"},risk:{l:"Recognize & Remediate Risk",c:"var(--c-risk)"},seek:{l:"Seek, Scale & Influence",c:"var(--c-seek)"}};
+  const rows=Object.entries(compScore).filter(([,v])=>v.t>0).map(([k,v])=>{
+    const pct=Math.round(v.c/v.t*100);
+    return `<div class="comp-row"><span class="comp-row-lbl">${defs[k].l}</span><div class="comp-row-bar"><div class="comp-row-fill" style="width:${pct}%;background:${defs[k].c}"></div></div><span class="comp-row-n" style="color:${defs[k].c}">${v.c}/${v.t}</span></div>`;
+  }).join('');
+  return `<div class="comp-profile"><div class="comp-profile-title">Your Competency Profile</div>${rows}</div>`;
+}
+function done(){
+  const p=Math.round(score.c/CARDS.length*100);
+  const [g,gc]=p>=90?["Outstanding","var(--ok)"]:p>=75?["Proficient","var(--gold)"]:["Needs Review","var(--bad)"];
+  const misses=history.filter(h=>!h.ok);
+  const rev=misses.length?`<div class="review-list">${misses.map(h=>`<div class="review-item"><span style="color:var(--bad)">✗</span><div><div class="review-q">${h.c.stem.slice(0,90)}…</div><div class="review-ans">Answer: ${h.c.choices.find(c=>c.correct).text.slice(0,70)}…</div></div></div>`).join('')}</div>`:'';
+  document.getElementById('area').innerHTML=`<div class="results">
+    <div class="results-eyebrow">Complete</div>
+    <div class="results-score" style="color:${gc}">${p}<span style="font-size:36px">%</span></div>
+    <div class="results-grade" style="color:${gc}">${g}</div>
+    <p class="results-sub">${score.c} of ${CARDS.length} scenarios correct</p>
+    ${buildCompProfile(compScore)}
+    ${rev}
+    <button class="btn-restart" onclick="restart()">RETAKE →</button>
+  </div>`;
+}
+function restart(){idx=0;score={c:0,t:0};history=[];streak=0;compScore={know:{c:0,t:0},own:{c:0,t:0},comm:{c:0,t:0},risk:{c:0,t:0},seek:{c:0,t:0}};render();}
+render();
+</script>
+</div>
+</html>

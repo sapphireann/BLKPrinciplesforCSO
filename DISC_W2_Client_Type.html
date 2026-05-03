@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Client Type</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#06080d;--panel:#0d1420;--surface:#111928;--border:#182438;--hi:#1e3050;
+  --text:#cdd8f0;--muted:#4a6080;--dim:#090d14;
+  --ok:#10b981;--bad:#ef4444;--gold:#f5a623;
+  --ok-d:rgba(16,185,129,0.12);--bad-d:rgba(239,68,68,0.1);--gold-d:rgba(245,166,35,0.1);
+  --c-know:#f472b6;--c-own:#fb923c;--c-comm:#a78bfa;--c-risk:#38bdf8;--c-seek:#4ade80;
+}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(43,127,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(43,127,255,0.03) 1px,transparent 1px);
+  background-size:60px 60px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:36px 18px 60px}
+.hdr{margin-bottom:28px}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.title{font-family:'Playfair Display',serif;font-size:clamp(24px,4vw,36px);line-height:1.15;color:var(--text);margin-bottom:10px}
+.sub{font-size:13px;color:var(--muted);line-height:1.7;max-width:540px;margin-bottom:20px}
+.comp-strip{display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:20px}
+.comp-strip-lbl{width:100%;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.cpill{display:flex;align-items:center;gap:5px;font-size:10px;font-family:'IBM Plex Mono',monospace;padding:3px 9px;border-radius:20px;border:1px solid currentColor}
+.cdot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.prog-wrap{margin-bottom:24px}
+.prog-track{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:7px}
+.prog-fill{height:100%;border-radius:2px;transition:width .5s ease}
+.prog-meta{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.streak{color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:10px}
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color .3s;animation:slideUp .32s ease both}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.card-top{padding:10px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.tag{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.card-lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.card-comp-bar{padding:8px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.card-comp-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.card-comp-pills{display:flex;gap:6px;flex-wrap:wrap}
+.card-cpill{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:2px 8px;border-radius:10px;border:1px solid;letter-spacing:.06em;font-weight:600}
+.card-body{padding:28px 22px 22px}
+.card-q{font-family:'Playfair Display',serif;font-size:clamp(15px,2.5vw,20px);line-height:1.6;font-style:italic}
+/* Choices */
+.choices{padding:0 22px 18px;display:flex;flex-direction:column;gap:9px}
+.choice{display:flex;gap:10px;padding:13px 14px;border-radius:10px;font-size:13px;text-align:left;cursor:pointer;transition:all .2s;border:1px solid var(--border);color:var(--muted);background:transparent;line-height:1.5}
+.choice:not(:disabled):hover{border-color:var(--hi);color:var(--text)}
+.choice .letter{font-family:'IBM Plex Mono',monospace;font-size:11px;flex-shrink:0}
+.choice.correct{background:var(--ok-d);border-color:var(--ok);color:var(--ok)}
+.choice.wrong{background:var(--bad-d);border-color:var(--bad);color:var(--bad)}
+/* Sort buttons */
+.sort-btns{padding:0 22px 18px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.sort-btn{padding:14px 8px;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:all .22s;border:1px solid var(--border);color:var(--muted);background:transparent}
+.sort-btn:not(:disabled):hover{transform:translateY(-2px)}
+/* Explanation */
+.expl{margin:0 22px 16px;padding:14px 16px;border-radius:10px;border-left:3px solid;animation:slideUp .28s ease}
+.expl-hdr{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+.expl-txt{font-size:13.5px;line-height:1.7;color:var(--text);margin-bottom:10px}
+.comp-insight{padding:10px 12px;border-radius:8px;border:1px solid;margin-top:8px}
+.comp-insight-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px;font-weight:600}
+.comp-insight-txt{font-size:12px;line-height:1.6;font-style:italic}
+/* Next / Restart */
+.btn-next{display:block;width:calc(100% - 44px);margin:0 22px 22px;padding:13px;background:transparent;border:1px solid var(--hi);border-radius:10px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.1em;cursor:pointer;transition:background .2s}
+.btn-next:hover{background:var(--border)}
+/* Flash */
+.flash-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 22px;min-height:170px;cursor:pointer;transition:border-color .3s;animation:slideUp .32s ease}
+.flash-hint{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+.flash-q{font-family:'Playfair Display',serif;font-size:clamp(17px,2.5vw,21px);line-height:1.55;font-style:italic}
+.flash-tap{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-top:16px}
+.flash-back-lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px}
+.flash-ans{font-size:14.5px;line-height:1.75;color:var(--text);margin-bottom:14px}
+.flash-why{padding:12px 14px;border-radius:8px;margin-top:4px}
+.flash-why-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px;font-weight:600}
+.flash-why-txt{font-size:12px;line-height:1.6;font-style:italic;color:var(--text)}
+.mark-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.mark-btn{padding:12px;border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:12px;cursor:pointer;transition:all .2s;border:1px solid;background:transparent}
+/* Pulse */
+.client-hdr{padding:16px 22px;border-bottom:1px solid var(--border)}
+.client-name{font-size:19px;font-weight:500;margin-bottom:3px}
+.client-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+.client-ctx{padding:10px 22px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);font-style:italic;line-height:1.5;border-left:2px solid var(--hi)}
+.signals-list{padding:0 22px}
+.signal-row{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
+.signal-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.signal-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.signal-val{font-size:13px;color:var(--text)}
+.diagnose-btns{padding:14px 22px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.d-btn{padding:12px 6px;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;transition:all .22s;border:1px solid var(--border);color:var(--muted);background:transparent}
+.d-btn:not(:disabled):hover{transform:translateY(-2px)}
+/* Results */
+.results{text-align:center;padding:44px 16px;animation:slideUp .4s ease}
+.results-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.results-score{font-family:'Playfair Display',serif;font-size:80px;font-weight:700;line-height:1}
+.results-grade{font-size:18px;margin-top:6px;margin-bottom:4px}
+.results-sub{font-size:13px;color:var(--muted);margin-bottom:28px}
+.comp-profile{margin-bottom:20px;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;text-align:left}
+.comp-profile-title{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.comp-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.comp-row-lbl{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--muted);width:175px;flex-shrink:0}
+.comp-row-bar{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.comp-row-fill{height:100%;border-radius:2px;transition:width .8s ease}
+.comp-row-n{font-family:'IBM Plex Mono',monospace;font-size:10px;width:30px;text-align:right;flex-shrink:0}
+.review-list{text-align:left;margin-bottom:20px;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.review-item{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);font-size:12.5px}
+.review-item:last-child{border-bottom:none}
+.review-q{color:var(--text);line-height:1.4;margin-bottom:3px}
+.review-ans{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+.btn-restart{width:100%;padding:14px;background:var(--surface);border:1px solid var(--hi);border-radius:10px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.1em;cursor:pointer;transition:background .2s}
+.btn-restart:hover{background:var(--panel)}
+.legend{display:flex;gap:22px;margin-top:18px;flex-wrap:wrap;justify-content:center}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+.leg-dot{width:8px;height:8px;border-radius:50%}
+@media(max-width:480px){.sort-btns,.diagnose-btns{grid-template-columns:1fr 1fr 1fr;gap:6px}.sort-btn,.d-btn{font-size:12px;padding:11px 4px}}
+
+:root{--accent:#f472b6}
+.prog-fill{background:linear-gradient(90deg,#f472b6,var(--gold))}
+.tag{color:#f472b6}
+.flash-card.open{border-color:#f472b6}
+.flash-back-lbl{color:#f472b6}
+.flash-why{background:#f472b618;border:1px solid #f472b644}
+.flash-why-lbl{color:#f472b6}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hdr">
+  <div class="eyebrow">Week 2 · Client Discovery · CSO EMEA</div>
+  <h1 class="title">Client Type</h1>
+  <p class="sub">Know Your Client is a core competency — and it starts with understanding the four institutional client types you will serve throughout your career as a CSO.</p>
+  <div class="comp-strip"><div class="comp-strip-lbl">Core Competencies</div><span class="cpill" style="color:var(--c-know)"><span class="cdot"></span>Know Your Client</span></div>
+</div>
+<div class="prog-wrap"><div class="prog-track"><div class="prog-fill" id="pb" style="width:0%"></div></div><div class="prog-meta"><span id="pl">Card 1 of 6</span><span id="sc">0 correct</span></div></div>
+<div id="area"></div>
+<script>
+const CARDS=[{"front":"What are the four main institutional client types a CSO will serve — and what distinguishes each?","back":"1. Pension Funds: invest on behalf of beneficiaries, long-horizon, heavily regulated, formal governance structures. 2. Insurers: match liabilities (especially Solvency II), hold significant FI. 3. Sovereign Wealth Funds: government-owned, long-term capital preservation. 4. Asset Managers: invest on behalf of end investors, sophisticated, cost-sensitive.","why":"Each client type brings different regulatory obligations, different governance structures, and different service expectations. A CSO who treats all four the same will consistently miss what matters to each one."},{"front":"What are the key operational characteristics of a Pension Fund client?","back":"Pension funds have formal investment committees, strict regulatory oversight, and long investment horizons. They often use liability-driven investing (LDI) strategies. They have multiple internal stakeholders (trustees, CIO, operations team) and require formal reporting, compliance certificates, and clear escalation paths.","why":"When you're scheduling a review meeting with a pension fund, you're often coordinating across trustees, the investment office, and an operations team. Understanding their governance structure helps you pitch the right content to the right people."},{"front":"What are the key service characteristics of an Insurance company client?","back":"Insurers are subject to Solvency II (in Europe), which creates specific capital and reporting requirements. They hold large FI portfolios to match liabilities. They require regulatory reporting (SCR, QRTs), precise duration management, and fast query resolution given their own regulatory timelines.","why":"An insurer client who needs a specific regulatory report by a deadline set by their regulator — not BlackRock — has no flexibility on timing. The CSO who understands this moves insurer regulatory reporting queries to the top of their priority list automatically."},{"front":"What are the key characteristics of a Sovereign Wealth Fund (SWF) client?","back":"SWFs are state-owned investment vehicles managing national reserves, oil revenues, or other sovereign assets. They prioritise capital preservation and long-term returns. They are often highly sophisticated investors with strong internal investment teams, and they place significant weight on operational due diligence.","why":"SWF clients often have rigorous ODD processes and high expectations of operational excellence. The CSO serving an SWF needs to be consistently excellent — these clients notice and report on service quality formally."},{"front":"What distinguishes an Asset Manager client from the other three institutional types?","back":"Asset managers invest on behalf of their own clients (end investors). They are typically more sophisticated and cost-conscious than pension funds or insurers. They often have strong internal operational teams who will scrutinise BlackRock's processes carefully. They may invest in BlackRock funds or have segregated mandates.","why":"Asset manager clients often have operational experts internally who will identify gaps or inefficiencies that other client types might not notice. The CSO serving asset managers needs to be especially rigorous."},{"front":"What is the difference between a segregated mandate and a pooled fund — and why does it matter for the CSO?","back":"A segregated mandate is a dedicated portfolio managed exclusively for one client, with bespoke guidelines and reporting. A pooled fund is a shared vehicle where multiple investors contribute capital. Segregated clients get fully customised service; pooled fund clients (e.g. ETF clients) receive standardised service.","why":"The distinction drives the CSO's service model. Segregated clients have bespoke guidelines, bespoke reporting, and individual change event processes. Pooled clients operate within the fund's standard terms. Confusing the two leads to over-servicing some clients and under-servicing others."}];
+const COMPS=["know"];
+let idx=0,score={c:0,t:0},compScore={know:{c:0,t:0},own:{c:0,t:0},comm:{c:0,t:0},risk:{c:0,t:0},seek:{c:0,t:0}};
+function upd(){document.getElementById('pb').style.width=(idx/CARDS.length*100)+'%';document.getElementById('pl').textContent='Card '+(idx+1)+' of '+CARDS.length;document.getElementById('sc').textContent=score.c+' correct';}
+function render(){
+  const c=CARDS[idx];upd();
+  document.getElementById('area').innerHTML=`<div class="flash-card" id="fc" onclick="flip()">
+    <div style="text-align:center">
+      <div class="flash-hint">FLASHCARD · TAP TO REVEAL</div>
+      <p class="flash-q">"${c.front}"</p>
+      <div class="flash-tap">↓ tap to reveal</div>
+    </div>
+  </div>`;
+}
+function flip(){
+  const c=CARDS[idx];const fc=document.getElementById('fc');
+  fc.classList.add('open');fc.onclick=null;
+  const ci=c.comps?c.comps.map(id=>`<div class="comp-insight" style="border-color:${cmap[id]};background:${cmap[id]}18"><div class="comp-insight-lbl" style="color:${cmap[id]}">${cnames[id]}</div><p class="comp-insight-txt">${c.why}</p></div>`).join(''):`<div class="comp-insight" style="border-color:var(--accent);background:var(--accent)18"><div class="comp-insight-lbl" style="color:var(--accent)">Why this matters</div><p class="comp-insight-txt">${c.why}</p></div>`;
+  fc.innerHTML=`<div class="flash-back-lbl">ANSWER</div><p class="flash-ans">${c.back}</p>${ci}
+    <div class="mark-btns">
+      <button class="mark-btn" style="border-color:var(--bad);color:var(--bad)" onclick="mark(false)">✗ Review again</button>
+      <button class="mark-btn" style="border-color:var(--ok);color:var(--ok)" onclick="mark(true)">✓ Got it</button>
+    </div>`;
+}
+const cmap={know:"var(--c-know)",own:"var(--c-own)",comm:"var(--c-comm)",risk:"var(--c-risk)",seek:"var(--c-seek)"};
+const cnames={know:"Know Your Client",own:"Own Outcomes",comm:"Communicate with Impact",risk:"Recognize & Remediate Risk",seek:"Seek, Scale & Influence"};
+function mark(ok){score.t++;if(ok){score.c++;COMPS.forEach(id=>{compScore[id].t++;compScore[id].c++;});}else{COMPS.forEach(id=>{compScore[id].t++;});}setTimeout(()=>{idx++;idx>=CARDS.length?done():render();},300);}
+
+function buildCompProfile(compScore){
+  const defs={know:{l:"Know Your Client",c:"var(--c-know)"},own:{l:"Own Outcomes",c:"var(--c-own)"},comm:{l:"Communicate with Impact",c:"var(--c-comm)"},risk:{l:"Recognize & Remediate Risk",c:"var(--c-risk)"},seek:{l:"Seek, Scale & Influence",c:"var(--c-seek)"}};
+  const rows=Object.entries(compScore).filter(([,v])=>v.t>0).map(([k,v])=>{
+    const pct=Math.round(v.c/v.t*100);
+    return `<div class="comp-row"><span class="comp-row-lbl">${defs[k].l}</span><div class="comp-row-bar"><div class="comp-row-fill" style="width:${pct}%;background:${defs[k].c}"></div></div><span class="comp-row-n" style="color:${defs[k].c}">${v.c}/${v.t}</span></div>`;
+  }).join('');
+  return `<div class="comp-profile"><div class="comp-profile-title">Your Competency Profile</div>${rows}</div>`;
+}
+function done(){
+  const p=Math.round(score.c/CARDS.length*100);
+  const [g,gc]=p>=90?["Outstanding","var(--ok)"]:p>=70?["Solid foundation","var(--gold)"]:["Keep practising","var(--bad)"];
+  document.getElementById('area').innerHTML=`<div class="results">
+    <div class="results-eyebrow">Session Complete</div>
+    <div class="results-score" style="color:${gc}">${p}<span style="font-size:36px">%</span></div>
+    <div class="results-grade" style="color:${gc}">${g}</div>
+    <p class="results-sub">${score.c} of ${CARDS.length} cards</p>
+    ${buildCompProfile(compScore)}
+    <button class="btn-restart" onclick="restart()">RETAKE →</button>
+  </div>`;
+}
+function restart(){idx=0;score={c:0,t:0};compScore={know:{c:0,t:0},own:{c:0,t:0},comm:{c:0,t:0},risk:{c:0,t:0},seek:{c:0,t:0}};render();}
+render();
+</script>
+</div>
+</html>
