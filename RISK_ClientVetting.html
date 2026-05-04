@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Client Vetting — Recognize Risk Early</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#06080d;--panel:#0d1420;--surface:#111928;--border:#182438;--hi:#1e3050;
+  --text:#cdd8f0;--muted:#4a6080;--dim:#090d14;
+  --ok:#10b981;--ok-d:rgba(16,185,129,0.12);
+  --bad:#ef4444;--bad-d:rgba(239,68,68,0.1);
+  --gold:#f5a623;--gold-d:rgba(245,166,35,0.1);
+  --risk:#38bdf8;
+  --r-aml:#ef4444;
+  --r-rep:#f97316;
+  --r-reg:#a78bfa;
+  --r-ops:#f5a623;
+  --r-san:#f472b6;
+}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(56,189,248,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,0.03) 1px,transparent 1px);
+  background-size:60px 60px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:36px 18px 60px}
+
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.title{font-family:'Playfair Display',serif;font-size:clamp(24px,4vw,34px);line-height:1.15;color:var(--text);margin-bottom:8px}
+.title span{color:var(--risk)}
+.sub{font-size:13px;color:var(--muted);line-height:1.7;max-width:540px;margin-bottom:20px}
+
+/* Risk type legend */
+.risk-legend{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:22px}
+.rl-title{width:100%;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.r-pill{display:flex;align-items:center;gap:5px;font-size:10px;font-family:'IBM Plex Mono',monospace;padding:3px 9px;border-radius:20px;border:1px solid currentColor}
+.r-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+/* Risk radar — mini dashboard */
+.radar{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:22px}
+.radar-cell{padding:8px 6px;background:var(--panel);border:1px solid var(--border);border-radius:8px;text-align:center}
+.radar-cell-n{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;line-height:1;margin-bottom:3px}
+.radar-cell-l{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.radar-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:5px}
+.radar-fill{height:100%;border-radius:2px;transition:width .6s ease}
+
+/* Progress */
+.prog-wrap{margin-bottom:22px}
+.prog-track{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:7px}
+.prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--risk),var(--gold));transition:width .5s ease}
+.prog-meta{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color .3s;animation:slideUp .32s ease both}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.card-top{padding:10px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.risk-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:20px;border:1px solid;font-weight:600}
+.card-lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+
+/* Prospect dossier */
+.dossier{margin:14px 22px 0;background:var(--dim);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.dossier-hdr{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.dossier-name{font-size:14px;font-weight:500}
+.dossier-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.dossier-fields{padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.dossier-row{display:flex;gap:10px;font-size:12px;line-height:1.4}
+.dossier-key{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);width:120px;flex-shrink:0;text-transform:uppercase;letter-spacing:.06em;margin-top:1px}
+.dossier-val{color:var(--text)}
+.dossier-flag{color:var(--bad);font-style:italic}
+.signal-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px}
+
+.card-body{padding:20px 22px 18px}
+.card-q{font-family:'Playfair Display',serif;font-size:clamp(15px,2.5vw,19px);line-height:1.6;font-style:italic}
+
+/* Choices */
+.choices{padding:0 22px 18px;display:flex;flex-direction:column;gap:9px}
+.choice{display:flex;gap:10px;padding:12px 14px;border-radius:10px;font-size:13px;text-align:left;cursor:pointer;transition:all .2s;border:1px solid var(--border);color:var(--muted);background:transparent;line-height:1.5;width:100%}
+.choice:not(:disabled):hover{border-color:var(--hi);color:var(--text);background:var(--panel)}
+.choice .letter{font-family:'IBM Plex Mono',monospace;font-size:11px;flex-shrink:0}
+.choice.correct{background:var(--ok-d);border-color:var(--ok);color:var(--ok)}
+.choice.wrong{background:var(--bad-d);border-color:var(--bad);color:var(--bad)}
+
+/* Explanation */
+.expl{margin:0 22px 14px;padding:14px 16px;border-radius:10px;border-left:3px solid;animation:slideUp .28s ease}
+.expl-hdr{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+.expl-txt{font-size:13.5px;line-height:1.7;color:var(--text);margin-bottom:10px}
+.signal-box{padding:10px 12px;border-radius:8px;border:1px solid;margin-top:10px}
+.signal-box-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px;font-weight:600}
+.signal-box-txt{font-size:12px;line-height:1.6;font-style:italic}
+.escalation-box{padding:10px 12px;border-radius:8px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);margin-top:8px}
+.esc-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--bad);letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px;font-weight:600}
+.esc-txt{font-size:12px;line-height:1.6;color:var(--text)}
+
+.btn-next{display:block;width:calc(100% - 44px);margin:0 22px 22px;padding:13px;background:transparent;border:1px solid var(--hi);border-radius:10px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.1em;cursor:pointer;transition:background .2s}
+.btn-next:hover{background:var(--border)}
+
+/* Results */
+.results{text-align:center;padding:40px 16px;animation:slideUp .4s ease}
+.results-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.results-score{font-family:'Playfair Display',serif;font-size:80px;font-weight:700;line-height:1}
+.results-grade{font-size:18px;margin-top:6px;margin-bottom:4px}
+.results-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+.risk-profile{margin-bottom:20px;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:12px;text-align:left}
+.rp-title{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.rp-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.rp-lbl{font-size:11px;color:var(--muted);width:180px;flex-shrink:0}
+.rp-bar{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.rp-fill{height:100%;border-radius:2px;transition:width .8s ease}
+.rp-n{font-family:'IBM Plex Mono',monospace;font-size:10px;width:30px;text-align:right;flex-shrink:0}
+.review-list{text-align:left;margin-bottom:20px;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.review-item{padding:12px 16px;border-bottom:1px solid var(--border);font-size:12.5px}
+.review-item:last-child{border-bottom:none}
+.btn-restart{width:100%;padding:14px;background:var(--surface);border:1px solid var(--hi);border-radius:10px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.1em;cursor:pointer;transition:background .2s}
+.btn-restart:hover{background:var(--panel)}
+
+@media(max-width:520px){.radar{grid-template-columns:repeat(3,1fr)}.dossier-key{width:90px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div style="margin-bottom:24px">
+    <div class="eyebrow">Client Discovery · Recognize & Remediate Risk · CSO EMEA</div>
+    <h1 class="title">Client Vetting — <span>Recognize Risk Early</span></h1>
+    <p class="sub">You are reviewing 10 new prospects. For each one, intelligence has been gathered. Your job is to identify what the risk signals mean, how serious they are, and what action to take. Not every prospect is the right client — recognizing that early protects BlackRock and your clients.</p>
+
+    <div class="risk-legend">
+      <div class="rl-title">Risk categories in this game</div>
+      <span class="r-pill" style="color:var(--r-aml)"><span class="r-dot"></span>AML / Financial Crime</span>
+      <span class="r-pill" style="color:var(--r-rep)"><span class="r-dot"></span>Reputational</span>
+      <span class="r-pill" style="color:var(--r-reg)"><span class="r-dot"></span>Regulatory / Compliance</span>
+      <span class="r-pill" style="color:var(--r-ops)"><span class="r-dot"></span>Operational</span>
+      <span class="r-pill" style="color:var(--r-san)"><span class="r-dot"></span>Sanctions</span>
+    </div>
+  </div>
+
+  <!-- Risk Radar -->
+  <div class="radar" id="radar">
+    <div class="radar-cell" id="rc-aml">
+      <div class="radar-cell-n" style="color:var(--r-aml)">0</div>
+      <div class="radar-cell-l" style="color:var(--r-aml)">AML</div>
+      <div class="radar-bar"><div class="radar-fill" id="rf-aml" style="width:0%;background:var(--r-aml)"></div></div>
+    </div>
+    <div class="radar-cell" id="rc-rep">
+      <div class="radar-cell-n" style="color:var(--r-rep)">0</div>
+      <div class="radar-cell-l" style="color:var(--r-rep)">Reputation</div>
+      <div class="radar-bar"><div class="radar-fill" id="rf-rep" style="width:0%;background:var(--r-rep)"></div></div>
+    </div>
+    <div class="radar-cell" id="rc-reg">
+      <div class="radar-cell-n" style="color:var(--r-reg)">0</div>
+      <div class="radar-cell-l" style="color:var(--r-reg)">Regulatory</div>
+      <div class="radar-bar"><div class="radar-fill" id="rf-reg" style="width:0%;background:var(--r-reg)"></div></div>
+    </div>
+    <div class="radar-cell" id="rc-ops">
+      <div class="radar-cell-n" style="color:var(--r-ops)">0</div>
+      <div class="radar-cell-l" style="color:var(--r-ops)">Operational</div>
+      <div class="radar-bar"><div class="radar-fill" id="rf-ops" style="width:0%;background:var(--r-ops)"></div></div>
+    </div>
+    <div class="radar-cell" id="rc-san">
+      <div class="radar-cell-n" style="color:var(--r-san)">0</div>
+      <div class="radar-cell-l" style="color:var(--r-san)">Sanctions</div>
+      <div class="radar-bar"><div class="radar-fill" id="rf-san" style="width:0%;background:var(--r-san)"></div></div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="prog-wrap">
+    <div class="prog-track"><div class="prog-fill" id="pb" style="width:0%"></div></div>
+    <div class="prog-meta"><span id="pl">Prospect 1 of 10</span><span id="sc">0 / 0 correct</span></div>
+  </div>
+
+  <div id="area"></div>
+
+</div>
+
+<script>
+const RISK_TYPES = {
+  aml: { label:"AML / Financial Crime", color:"var(--r-aml)" },
+  rep: { label:"Reputational",          color:"var(--r-rep)" },
+  reg: { label:"Regulatory / Compliance",color:"var(--r-reg)" },
+  ops: { label:"Operational",           color:"var(--r-ops)" },
+  san: { label:"Sanctions",             color:"var(--r-san)" },
+};
+
+let score = { c:0, t:0 };
+let history = [];
+let idx = 0;
+let riskScore = { aml:{c:0,t:0}, rep:{c:0,t:0}, reg:{c:0,t:0}, ops:{c:0,t:0}, san:{c:0,t:0} };
+
+const CARDS = [
+  {
+    riskType: "aml",
+    prospect: {
+      name: "Harrington Capital Partners",
+      type: "Family Office · Switzerland",
+      aum: "€340M",
+      contact: "CEO — Mr. V. Harrington",
+      fields: [
+        { key:"Mandate interest", val:"Fixed Income — €80M initial allocation", flag:false },
+        { key:"Ownership", val:"Single beneficial owner — Mr. Harrington", flag:false },
+        { key:"Source of wealth", val:"'Various business interests' — no further detail provided when asked", flag:true },
+        { key:"Urgency", val:"Pressing for account opening within 10 days — 'time sensitive'", flag:true },
+        { key:"Prior custodian", val:"Recently changed custodian — third change in 18 months", flag:true },
+      ]
+    },
+    stem:"Three signals are present simultaneously. What is your assessment and next action?",
+    choices:[
+      { text:"Proceed — family offices often move quickly and the AUM is legitimate size", correct:false,
+        feedback:"Three AML signals are present and none of them alone would be disqualifying — but all three together constitute a pattern that must be escalated. Unexplained source of wealth, unusual urgency, and frequent custodian changes are classic indicators that require enhanced due diligence before any further engagement.",
+        signal:"When AML signals cluster — even if each one is individually explainable — the combination is a red flag that must be escalated to your Compliance/AML team before proceeding.",
+        escalation:"Pause all engagement. Escalate to AML/Compliance immediately. Request detailed source of wealth documentation before any further steps. Do not allow urgency to compress the due diligence process." },
+      { text:"Escalate to AML/Compliance immediately — three AML signals clustering is a pattern that must be investigated before proceeding", correct:true,
+        feedback:"Correct. No single signal here is disqualifying on its own — but pattern recognition is the key skill. Unexplained source of wealth + unusual urgency + frequent custodian changes = an AML risk pattern that requires escalation before any further engagement. The CSO who spots the cluster and acts is protecting BlackRock and its existing clients.",
+        signal:"AML pattern recognition: individual signals may be innocent — but clustering of signals is itself a red flag requiring escalation.",
+        escalation:"Escalate to AML/Compliance. Request enhanced due diligence. Do not allow commercial pressure to override process." },
+      { text:"Ask the prospect directly to explain the source of wealth and proceed if the answer sounds reasonable", correct:false,
+        feedback:"A self-reported explanation from the prospect is not sufficient due diligence for AML purposes. You are not qualified to assess source of wealth explanations independently — this requires specialist AML review. Taking the prospect's word for it and proceeding would bypass the process entirely.",
+        signal:"Self-certification by a prospect is not AML due diligence. Only a formal AML review by your Compliance team can clear a flagged source of wealth concern.",
+        escalation:"Escalate to AML/Compliance regardless of what the prospect says to you directly." },
+    ]
+  },
+  {
+    riskType: "rep",
+    prospect: {
+      name: "Meridian Gulf Investments",
+      type: "Sovereign-linked Investment Vehicle · UAE",
+      aum: "€1.2B",
+      contact: "MD — Mr. A. Al-Rashid",
+      fields: [
+        { key:"Mandate interest", val:"Multi-Asset — significant mandate", flag:false },
+        { key:"Ownership", val:"Partially state-linked — associated with a Gulf sovereign", flag:false },
+        { key:"Media coverage", val:"Adverse media: linked to a high-profile bribery investigation in 2021 (resolved — no conviction)", flag:true },
+        { key:"Prior BlackRock relationship", val:"None", flag:false },
+        { key:"Proposed structure", val:"Investment routed through a Cayman SPV", flag:true },
+      ]
+    },
+    stem:"The mandate size is attractive. The adverse media is two years old and resolved. What is the correct approach?",
+    choices:[
+      { text:"Proceed — the investigation was resolved with no conviction two years ago. The mandate size justifies accepting the reputational risk", correct:false,
+        feedback:"Reputational risk is not about guilt — it is about association. Even a resolved investigation creates a reputational exposure for BlackRock. The commercial attractiveness of a mandate never justifies bypassing reputational risk assessment. This is a Reputational Risk Committee referral, not a commercial judgment.",
+        signal:"Reputational risk exists independently of legal outcome. A resolved investigation still creates association risk that must be formally assessed — not weighed against commercial interest.",
+        escalation:"Refer to Reputational Risk Committee before any further engagement. The decision is not yours to make." },
+      { text:"Refer to the Reputational Risk Committee before any further engagement — commercial attractiveness does not override reputational risk assessment", correct:true,
+        feedback:"Correct. Reputational risk is assessed independently of commercial value. The Reputational Risk Committee exists precisely because these decisions should not be made by the people closest to the commercial opportunity. Adverse media — even resolved — requires formal referral. The Cayman SPV adds a second signal that the committee should also assess.",
+        signal:"Adverse media + unusual investment structure = Reputational Risk Committee referral. Not a CSO judgment call.",
+        escalation:"Refer to Reputational Risk Committee. Do not progress the mandate until clearance is received." },
+      { text:"Proceed but request that the investment is made directly rather than through the Cayman SPV", correct:false,
+        feedback:"Resolving the structural concern doesn't resolve the reputational one. And requesting changes to a prospect's investment structure before a formal risk assessment is premature — it signals that BlackRock may proceed, which it hasn't decided to do. Refer to the Reputational Risk Committee first.",
+        signal:"Both signals — adverse media and the SPV structure — need to go to the Reputational Risk Committee. Resolving one commercially doesn't clear the other.",
+        escalation:"Reputational Risk Committee referral is required before any commercial negotiation or structural discussion." },
+    ]
+  },
+  {
+    riskType: "reg",
+    prospect: {
+      name: "Bjørnstad Kommunefond",
+      type: "Norwegian Municipal Fund",
+      aum: "€220M",
+      contact: "Finance Director — Ms. L. Bjørnstad",
+      fields: [
+        { key:"Mandate interest", val:"Fixed Income — €50M", flag:false },
+        { key:"Domicile", val:"Norway — not an EEA member state for MiFID marketing purposes", flag:true },
+        { key:"How they found BlackRock", val:"Contacted BlackRock directly — 'saw your materials at a conference in Oslo'", flag:true },
+        { key:"Local regulatory check", val:"Norway requires a local regulatory notification before marketing", flag:true },
+        { key:"RFP initiated", val:"Business has already sent an RFP response to the prospect", flag:true },
+      ]
+    },
+    stem:"The business has already sent an RFP response before regulatory checks were completed. What is the risk and what do you do?",
+    choices:[
+      { text:"Continue — the prospect approached BlackRock so this is reverse solicitation and no notification is needed", correct:false,
+        feedback:"Reverse solicitation is only valid if the approach was genuinely client-initiated with no prior marketing by BlackRock. The fact that the prospect 'saw materials at a conference in Oslo' suggests BlackRock did conduct marketing activity in Norway. This requires a proper reverse solicitation assessment — not a self-determined conclusion.",
+        signal:"Reverse solicitation cannot be self-certified by the business. It requires a formal regulatory assessment — especially where local notification requirements apply.",
+        escalation:"Halt the engagement pending regulatory assessment. The RFP response that was already sent must be flagged to Legal and Compliance." },
+      { text:"Flag to Legal and Compliance immediately — the RFP response was sent without completing the required regulatory checks, and the reverse solicitation claim requires formal assessment", correct:true,
+        feedback:"Correct. Two problems must be addressed: the regulatory check was skipped before the RFP response was sent (a process failure that must be reported), and the reverse solicitation claim needs formal assessment. Norway's local requirements mean this must be cleared before the engagement continues. The business moving without completing IPS is a governance failure.",
+        signal:"Regulatory check skipped + unverified reverse solicitation = mandatory escalation to Legal and Compliance regardless of how the engagement started.",
+        escalation:"Report the process failure to Legal/Compliance immediately. Halt further engagement. Complete Initial Prospect Screening formally before proceeding." },
+      { text:"Complete the regulatory check now and proceed if it clears — the delay was a process gap, not a fundamental issue", correct:false,
+        feedback:"The regulatory check failing to happen before the RFP response was sent is itself a reportable process failure — not something that can simply be completed retrospectively and then ignored. Legal and Compliance must be made aware of what occurred, even if the outcome of the check is ultimately positive.",
+        signal:"Process failures in regulated activity must be reported — not quietly corrected. The fact that the check was missed before an RFP response was sent is a compliance incident.",
+        escalation:"Report to Legal/Compliance. Complete IPS. Do not treat this as a simple paperwork catch-up." },
+    ]
+  },
+  {
+    riskType: "san",
+    prospect: {
+      name: "Eurasia Asset Management",
+      type: "Asset Manager · Cyprus",
+      aum: "€480M",
+      contact: "CEO — Mr. D. Volkov",
+      fields: [
+        { key:"Mandate interest", val:"Equities — €120M", flag:false },
+        { key:"Beneficial owner", val:"Mr. D. Volkov — Russian national, Cyprus resident", flag:true },
+        { key:"Sanctions check", val:"Mr. Volkov — not on OFAC or EU sanctions list", flag:false },
+        { key:"Business interests", val:"Several Russian energy sector investments disclosed", flag:true },
+        { key:"Correspondent banks", val:"One of the correspondent banks used is subject to EU sectoral sanctions", flag:true },
+      ]
+    },
+    stem:"The individual is not personally sanctioned. Two other signals are present. What is your assessment?",
+    choices:[
+      { text:"Proceed — the beneficial owner is not on any sanctions list so the sanctions risk is cleared", correct:false,
+        feedback:"Individual sanctions clearance is only one dimension of sanctions risk. Sectoral sanctions on a correspondent bank used in the transaction chain, and exposure to Russia's sanctioned energy sector, both create independent sanctions risk that must be assessed. Clearing the individual doesn't clear the structure.",
+        signal:"Sanctions risk has three dimensions: individual (person), entity (company/bank), and sectoral (industry). Clearing one does not clear the others.",
+        escalation:"Escalate to Sanctions Compliance team. The individual clearance alone is insufficient." },
+      { text:"Escalate to the Sanctions Compliance team — individual clearance is only one layer; sectoral and entity sanctions risks are still unresolved", correct:true,
+        feedback:"Correct. Sanctions screening is multi-layered. The individual may be clear, but a correspondent bank subject to EU sectoral sanctions creates a transaction-chain risk. Combined with significant Russian energy sector exposure, this requires specialist Sanctions Compliance review — not a commercial judgment about whether to proceed.",
+        signal:"Sanctions risk exists at individual, entity, and sectoral levels. Clearing one layer does not constitute full clearance.",
+        escalation:"Refer to Sanctions Compliance team. Do not proceed until all three dimensions are formally assessed and cleared." },
+      { text:"Request that the client uses a different correspondent bank and proceed once confirmed", correct:false,
+        feedback:"Negotiating around the correspondent bank issue is not within your authority — and it doesn't resolve the sectoral sanctions exposure from the Russian energy sector interests. Sanctions Compliance must assess the full picture. You cannot self-navigate around sanctions requirements.",
+        signal:"Attempting to structure around a sanctions concern without specialist review is itself a compliance risk.",
+        escalation:"Escalate to Sanctions Compliance. Do not attempt to re-engineer the structure to avoid the review." },
+    ]
+  },
+  {
+    riskType: "ops",
+    prospect: {
+      name: "Château Fontaine Family Foundation",
+      type: "French Charitable Foundation",
+      aum: "€95M",
+      contact: "Investment Committee Chair",
+      fields: [
+        { key:"Mandate interest", val:"Multi-Asset including 30% ALTS allocation", flag:false },
+        { key:"Governance", val:"Investment Committee meets quarterly — all decisions require full committee vote", flag:false },
+        { key:"Internal operations", val:"No internal operations team — all managed by a single part-time finance officer", flag:true },
+        { key:"Reporting needs", val:"Require bespoke impact reporting, ESG attribution, and French regulatory reports in addition to standard reporting", flag:true },
+        { key:"Technical capability", val:"No existing custodian experience — would be their first institutional mandate", flag:true },
+      ]
+    },
+    stem:"The foundation is enthusiastic and genuine — but three operational signals are present. What is the risk assessment?",
+    choices:[
+      { text:"Proceed — first-time institutional clients are an opportunity to build a long-term relationship", correct:false,
+        feedback:"Enthusiasm and genuineness don't resolve operational complexity. A client with no internal ops team, complex bespoke reporting requirements, quarterly-only decision-making, and no prior custodian experience will require disproportionate CSO time — and may not have the institutional infrastructure to honour their obligations in the relationship.",
+        signal:"Operational risk is about whether BlackRock can serve this client well — and whether the client has the infrastructure to be a viable institutional partner. Both matter.",
+        escalation:"Raise the operational complexity assessment with the RM and senior management before proceeding. Discuss whether the client's infrastructure can support the relationship." },
+      { text:"Raise the operational complexity with the RM — this client may lack the institutional infrastructure to support a mandate of this complexity, and BlackRock's ability to service them well must be honestly assessed", correct:true,
+        feedback:"Correct. Operational risk vetting includes asking whether BlackRock can genuinely serve this client well — and whether the client has the infrastructure to participate meaningfully. A single part-time finance officer managing complex ALTS reporting with no prior institutional experience creates significant operational risk on both sides. This needs an honest internal conversation before proceeding.",
+        signal:"Client vetting is not just about whether the client is legitimate — it's about whether the relationship can work operationally. Proceed only if both sides can honour their obligations.",
+        escalation:"Discuss with RM. Consider whether the mandate complexity is proportionate to the client's operational capability. Raising this is your responsibility." },
+      { text:"Proceed but simplify the mandate — suggest they reduce the ALTS allocation to lower complexity", correct:false,
+        feedback:"Simplifying the mandate may reduce complexity but doesn't resolve the structural operational issues: no internal ops team, complex reporting requirements, and limited institutional experience. These affect the relationship regardless of mandate composition. The conversation needs to happen first.",
+        signal:"Operational risk is not solely about the mandate composition — it's also about the client's own infrastructure and capability.",
+        escalation:"Discuss the full operational picture with the RM before any mandate composition decisions are made." },
+    ]
+  },
+  {
+    riskType: "aml",
+    prospect: {
+      name: "Global Trade Nexus Ltd",
+      type: "Trading Company · British Virgin Islands",
+      aum: "€210M",
+      contact: "Director — identity protected by nominee structure",
+      fields: [
+        { key:"Mandate interest", val:"Fixed Income — significant allocation", flag:false },
+        { key:"Beneficial owner", val:"Nominee directors disclosed — actual beneficial owner not identified", flag:true },
+        { key:"Ownership structure", val:"Multi-layer holding: BVI → Cayman → Luxembourg fund → investing entity", flag:true },
+        { key:"Business activity", val:"'International trade facilitation' — no further specifics provided", flag:true },
+        { key:"Source of funds", val:"Unable to verify — documentation refers to 'trading profits'", flag:true },
+      ]
+    },
+    stem:"Four AML signals are present. The business contact is enthusiastic about the commercial opportunity. What do you do?",
+    choices:[
+      { text:"Request more documentation and proceed if the documents look satisfactory", correct:false,
+        feedback:"Four simultaneous AML signals — opaque beneficial ownership, multi-layer jurisdiction structure, unverifiable business activity, and unverifiable source of funds — constitute a serious risk pattern that goes beyond a documentation request. This requires immediate Compliance/AML escalation, not a commercial documentation review.",
+        signal:"When four AML signals cluster simultaneously, no amount of additional documentation can substitute for a formal AML review. The pattern itself is the red flag.",
+        escalation:"Immediate escalation to AML/Compliance and Financial Crime team. Do not engage further until formal clearance." },
+      { text:"Escalate immediately to AML/Compliance and Financial Crime — four simultaneous AML signals constitute a serious risk pattern that cannot be resolved through documentation alone", correct:true,
+        feedback:"Correct. This prospect has four simultaneous AML red flags: opaque beneficial ownership, complex multi-jurisdiction structure, unverifiable business activity, and unverifiable source of funds. These are among the highest-risk indicators in AML screening. No commercial pressure justifies proceeding without full Compliance clearance — and the realistic outcome of this referral may be that BlackRock declines the prospect entirely.",
+        signal:"Four simultaneous AML indicators is a serious pattern. The realistic outcome may be prospect declination — and that is the right outcome if the risks cannot be resolved.",
+        escalation:"Immediate escalation to AML/Compliance and Financial Crime. Prepare for the possibility that this prospect will be declined." },
+      { text:"Tell the business contact that you need the ultimate beneficial owner identified before proceeding", correct:false,
+        feedback:"UBO identification is necessary but not sufficient when four AML signals are present. Asking for the UBO is a starting point — but the full pattern of signals here requires Compliance involvement, not just a data request from the prospect. And the communication to the prospect about what you require should come after internal consultation, not before.",
+        signal:"UBO identification is one element of AML screening — not the whole picture. With four signals present, Compliance must be involved before any further prospect communication.",
+        escalation:"Escalate to AML/Compliance first. Then agree with Compliance what communication, if any, goes to the prospect." },
+    ]
+  },
+  {
+    riskType: "reg",
+    prospect: {
+      name: "Lindström Pensionsförvaltning",
+      type: "Swedish Pension Fund",
+      aum: "€680M",
+      contact: "CIO — Ms. A. Lindström",
+      fields: [
+        { key:"Mandate interest", val:"Fixed Income — liability-matching strategy", flag:false },
+        { key:"Regulatory framework", val:"Governed by Swedish ITP pension regulation", flag:false },
+        { key:"Investment restrictions", val:"Cannot invest in instruments with credit rating below BBB-", flag:false },
+        { key:"Request", val:"Asking BlackRock to 'be flexible' on credit quality covenants in the mandate guidelines to access higher yield", flag:true },
+        { key:"Pressure", val:"CIO mentions they 'have board approval for the flexibility'", flag:true },
+      ]
+    },
+    stem:"The CIO says the board has approved this. The RM is keen to win the mandate. What is the regulatory risk — and what do you do?",
+    choices:[
+      { text:"Proceed — the client's board has approved the deviation so the responsibility sits with them", correct:false,
+        feedback:"Board approval by the client does not override the regulatory framework governing the fund. Swedish ITP pension regulation places limits on credit quality for a reason — to protect beneficiaries. If BlackRock invests below BBB- for this client and the regulator investigates, both the client and BlackRock carry risk. Client approval does not transfer regulatory liability.",
+        signal:"Client-side approval of a regulatory deviation does not protect BlackRock from regulatory risk. BlackRock has its own compliance obligations regardless of what the client's board has authorised.",
+        escalation:"Flag to Legal and Compliance before proceeding. The mandate guidelines must reflect what the regulatory framework actually permits." },
+      { text:"Flag to Legal and Compliance — client board approval does not override the regulatory framework governing the fund, and BlackRock cannot invest outside those parameters regardless of client instruction", correct:true,
+        feedback:"Correct. Regulatory risk runs independently of client instruction. A pension fund's regulatory framework exists to protect beneficiaries — not to be negotiated away in mandate guidelines. BlackRock must invest within what the regulatory framework permits, even if the client's board says otherwise. This requires a formal Legal/Compliance view before any mandate is agreed.",
+        signal:"Regulatory frameworks governing pension funds protect beneficiaries — not commercial relationships. These cannot be flexed away regardless of client instruction.",
+        escalation:"Flag to Legal/Compliance. The mandate guidelines must be compliant with the regulatory framework governing this client." },
+      { text:"Agree to 'BBB- with exceptions' language in the mandate — it gives flexibility without explicitly breaching the restriction", correct:false,
+        feedback:"'BBB- with exceptions' is a way of describing a below-BBB- investment — it doesn't change what is actually happening. Creative language that obscures a regulatory breach is itself a compliance risk. If the regulatory framework prohibits below-BBB- exposure, no mandate language can make that permissible.",
+        signal:"Creative mandate drafting that obscures a regulatory breach is not a solution — it is a second compliance risk layered on top of the first.",
+        escalation:"Escalate to Legal/Compliance. Do not attempt to structure around a regulatory requirement through language." },
+    ]
+  },
+  {
+    riskType: "rep",
+    prospect: {
+      name: "Crestwood Foundation",
+      type: "Philanthropic Foundation · UK",
+      aum: "€150M",
+      contact: "Trustee — Lord R. Crestwood",
+      fields: [
+        { key:"Mandate interest", val:"Multi-Asset — ESG focused mandate", flag:false },
+        { key:"Foundation purpose", val:"Environmental and social causes — publicly prominent", flag:false },
+        { key:"Trustee profile", val:"Lord Crestwood — prominent public figure, vocal on ESG", flag:false },
+        { key:"Media — trustee", val:"Recent adverse media: Lord Crestwood linked to a company with poor ESG practices", flag:true },
+        { key:"Foundation ESG mandate", val:"Foundation publicly committed to net-zero — investing with BlackRock on that basis", flag:false },
+      ]
+    },
+    stem:"The mandate aligns with BlackRock's ESG capabilities. The adverse media about the trustee is recent and prominent. What is the risk?",
+    choices:[
+      { text:"Proceed — the foundation's mandate is genuine ESG. The trustee's other activities are not BlackRock's concern", correct:false,
+        feedback:"Reputational risk does not require a connection to the mandate itself. A prominent trustee linked to poor ESG practices, running a foundation with a public net-zero commitment, investing with BlackRock on that basis — creates a reputational exposure for BlackRock if that contradiction becomes public. This needs Reputational Risk Committee assessment.",
+        signal:"Reputational risk can arise from association, not just direct involvement. A public contradiction between a trustee's activities and the mandate's stated purpose creates exposure.",
+        escalation:"Refer to Reputational Risk Committee. The adverse media is recent, prominent, and directly contradicts the stated mandate purpose." },
+      { text:"Refer to the Reputational Risk Committee — the contradiction between the trustee's other activities and the foundation's stated ESG mandate creates reputational exposure for BlackRock", correct:true,
+        feedback:"Correct. Reputational risk here arises from the contradiction: a prominent, publicly ESG-committed foundation, whose trustee is linked to poor ESG practices, investing with BlackRock on an ESG mandate. If that contradiction becomes a media story, BlackRock is in it. The Reputational Risk Committee is the right forum — not a CSO or RM judgment call.",
+        signal:"Reputational risk from contradiction is as real as reputational risk from direct association. The committee assesses both.",
+        escalation:"Refer to Reputational Risk Committee before proceeding. This is not a commercial judgment." },
+      { text:"Proceed but flag the adverse media to the RM for their awareness", correct:false,
+        feedback:"Flagging to the RM is not the same as a formal reputational risk assessment. The RM is not the decision-maker for reputational risk — the Reputational Risk Committee is. Awareness without action doesn't resolve the risk.",
+        signal:"RM awareness is not reputational risk clearance. The Reputational Risk Committee must formally assess and approve.",
+        escalation:"Refer to Reputational Risk Committee. Flagging to the RM alone is insufficient." },
+    ]
+  },
+  {
+    riskType: "aml",
+    prospect: {
+      name: "Coastal Wealth Partners",
+      type: "Asset Manager · Malta",
+      aum: "€310M",
+      contact: "MD — Mr. G. Farrugia",
+      fields: [
+        { key:"Mandate interest", val:"Fixed Income — €70M", flag:false },
+        { key:"Regulatory status", val:"Licensed by MFSA (Malta Financial Services Authority)", flag:false },
+        { key:"Client base", val:"Primarily high-net-worth individuals — source of client funds not disclosed to BlackRock", flag:true },
+        { key:"AML framework", val:"Malta has been subject to FATF grey-listing concerns in prior years", flag:true },
+        { key:"Structure", val:"Investing on behalf of underlying clients via nominee — end investors not identified", flag:true },
+      ]
+    },
+    stem:"The manager is licensed and legitimate. Three structural signals are present. What is the appropriate response?",
+    choices:[
+      { text:"Proceed — the manager is regulated and licensed. Their AML obligations cover their own clients.", correct:false,
+        feedback:"A regulated manager's AML obligations to their own clients do not transfer BlackRock's AML obligations. When BlackRock is investing on behalf of a nominee without knowing the end investors, BlackRock carries its own AML risk — regardless of the manager's regulatory status. Malta's FATF history adds a jurisdictional risk layer.",
+        signal:"A regulated intermediary's AML compliance does not substitute for BlackRock's own AML obligations regarding ultimate beneficial owners.",
+        escalation:"Escalate to AML/Compliance. Request look-through to the underlying investor base or formal AML reliance agreement with the manager." },
+      { text:"Escalate to AML/Compliance — investing via nominee without end-investor visibility, combined with jurisdictional risk, requires formal AML clearance regardless of the manager's regulatory status", correct:true,
+        feedback:"Correct. BlackRock has independent AML obligations that cannot be delegated to a third-party manager. Investing on behalf of a nominee without end-investor visibility is an AML risk that must be formally assessed. The FATF jurisdictional context and the undisclosed client base both require specialist Compliance review — not a commercial judgment.",
+        signal:"BlackRock's AML obligations are independent and cannot be discharged by relying on a third party's regulatory status.",
+        escalation:"Escalate to AML/Compliance. Consider whether a formal AML reliance agreement is needed, or whether look-through to the underlying investors is required." },
+      { text:"Request a letter from the manager confirming their AML processes meet FATF standards and proceed if received", correct:false,
+        feedback:"A self-certification letter from the manager is not sufficient AML clearance for BlackRock. Formal AML Compliance must assess whether a reliance arrangement is appropriate and whether the jurisdictional risk is acceptable — not based on a letter, but on a structured review.",
+        signal:"Self-certification is not AML clearance. Only formal Compliance assessment establishes whether reliance on a third party's AML framework is permissible.",
+        escalation:"Escalate to AML/Compliance for formal assessment." },
+    ]
+  },
+  {
+    riskType: "ops",
+    prospect: {
+      name: "TechVenture Endowment",
+      type: "US Technology Sector Endowment",
+      aum: "€520M",
+      contact: "CIO — Ms. R. Park",
+      fields: [
+        { key:"Mandate interest", val:"Multi-Asset including significant ALTS", flag:false },
+        { key:"Jurisdiction", val:"US-domiciled endowment investing into BlackRock EMEA", flag:true },
+        { key:"Tax structure", val:"Requires specific ERISA-related documentation and US tax reporting", flag:true },
+        { key:"Reporting requirements", val:"Requires US GAAP reporting in addition to standard BlackRock reporting", flag:true },
+        { key:"Legal framework", val:"Expects US-law governed documentation — EMEA standard is English law", flag:true },
+      ]
+    },
+    stem:"Four cross-jurisdictional signals are present. The RM is keen — this is a significant mandate. What is the risk assessment?",
+    choices:[
+      { text:"Proceed — BlackRock EMEA can accommodate US client requirements with some bespoke arrangements", correct:false,
+        feedback:"'Bespoke arrangements' for US-specific regulatory, tax, legal, and reporting requirements in an EMEA entity are not standard — and may not be possible at all. ERISA documentation, US GAAP reporting, and US-law documentation requests may fall outside what BlackRock EMEA can legally or operationally provide. This requires specialist Legal and Tax input before any commitment is made.",
+        signal:"Cross-jurisdictional complexity is operational risk. Committing to requirements before confirming BlackRock EMEA can actually deliver them creates a post-commitment risk that is very hard to resolve.",
+        escalation:"Refer to Legal and Tax teams before any commitments are made. Confirm what BlackRock EMEA can and cannot accommodate." },
+      { text:"Refer to Legal and Tax before making any commitments — US-specific ERISA, GAAP, and documentation requirements may be outside what BlackRock EMEA can deliver, and committing before confirming creates a significant post-commitment operational risk", correct:true,
+        feedback:"Correct. Cross-jurisdictional complexity is a category of operational risk that requires specialist input before engagement progresses. Committing to US-specific requirements in an EMEA entity without Legal and Tax confirmation is a significant risk — if BlackRock EMEA cannot deliver what was promised, the client has grounds for complaint and the relationship starts with a failure.",
+        signal:"Committing to complex cross-jurisdictional requirements before confirming delivery capability creates operational and reputational risk.",
+        escalation:"Refer to Legal and Tax immediately. Do not allow commercial enthusiasm to drive commitments ahead of capability confirmation." },
+      { text:"Tell the RM that EMEA entities cannot serve US endowments and close the discussion", correct:false,
+        feedback:"Closing the discussion entirely without investigation is disproportionate. There may be a path to serving this client — perhaps through a US-domiciled BlackRock entity, or with specific cross-border arrangements. The right response is to refer to Legal and Tax to understand what is possible — not to unilaterally close the discussion.",
+        signal:"Operational risk assessment is not a reason to immediately decline — it's a reason to investigate what is genuinely possible before making any commitment either way.",
+        escalation:"Refer to Legal and Tax to assess what BlackRock can offer this client and through which entity structure." },
+    ]
+  },
+];
+
+let riskCounts = { aml:0, rep:0, reg:0, ops:0, san:0 };
+
+function updateRadar(rtype, correct) {
+  riskScore[rtype].t++;
+  if(correct) { riskScore[rtype].c++; riskCounts[rtype]++; }
+  // Update visual
+  const total = riskScore[rtype].t;
+  const correct_ = riskScore[rtype].c;
+  const pct = total>0 ? Math.round((correct_/total)*100) : 0;
+  const nEl = document.querySelector(`#rc-${rtype} .radar-cell-n`);
+  const fEl = document.getElementById(`rf-${rtype}`);
+  if(nEl) nEl.textContent = pct+'%';
+  if(fEl) fEl.style.width = pct+'%';
+}
+
+function upd(){
+  document.getElementById('pb').style.width=(idx/CARDS.length*100)+'%';
+  document.getElementById('pl').textContent='Prospect '+(idx+1)+' of '+CARDS.length;
+  document.getElementById('sc').textContent=score.c+' / '+score.t+' correct';
+}
+
+function render(){
+  const c = CARDS[idx]; upd();
+  const rt = RISK_TYPES[c.riskType];
+
+  const fields = c.prospect.fields.map(f=>`
+    <div class="dossier-row">
+      <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px;background:${f.flag?'var(--bad)':'var(--ok)'}"></div>
+      <div style="width:1px"></div>
+      <div class="dossier-key">${f.key}</div>
+      <div class="dossier-val ${f.flag?'dossier-flag':''}">${f.val}</div>
+    </div>`).join('');
+
+  const choices = c.choices.map((ch,i)=>`
+    <button class="choice" id="ch${i}" onclick="pick(${i})">
+      <span class="letter">${String.fromCharCode(65+i)})</span> ${ch.text}
+    </button>`).join('');
+
+  document.getElementById('area').innerHTML=`
+    <div class="card" id="mc">
+      <div class="card-top">
+        <span class="risk-badge" style="color:${rt.color};border-color:${rt.color};background:${rt.color}18">${rt.label}</span>
+        <span class="card-lbl">WHAT IS YOUR ASSESSMENT?</span>
+      </div>
+      <div class="dossier">
+        <div class="dossier-hdr">
+          <div>
+            <div class="dossier-name">${c.prospect.name}</div>
+            <div class="dossier-meta">${c.prospect.type} · AUM ${c.prospect.aum}</div>
+          </div>
+          <div class="dossier-meta">Contact: ${c.prospect.contact}</div>
+        </div>
+        <div class="dossier-fields">${fields}</div>
+      </div>
+      <div class="card-body"><p class="card-q">"${c.stem}"</p></div>
+      <div class="choices">${choices}</div>
+    </div>`;
+}
+
+function pick(i){
+  const c=CARDS[idx]; const ch=c.choices[i]; const ok=ch.correct;
+  score.t++; if(ok) score.c++;
+  history.push({c,i,ok});
+  updateRadar(c.riskType, ok);
+
+  for(let j=0;j<c.choices.length;j++){
+    const b=document.getElementById('ch'+j); b.disabled=true;
+    if(c.choices[j].correct) b.classList.add('correct');
+    else if(j===i&&!ok) b.classList.add('wrong');
+  }
+
+  const rt=RISK_TYPES[c.riskType];
+  const ac=ok?'var(--ok)':'var(--bad)';
+  document.getElementById('mc').style.borderColor=ok?rt.color:'var(--bad)';
+
+  const expl=document.createElement('div');
+  expl.className='expl';
+  expl.style.cssText=`border-left-color:${ok?rt.color:'var(--bad)'};background:${ok?rt.color+'18':'rgba(239,68,68,.08)'}`;
+  expl.innerHTML=`
+    <div class="expl-hdr" style="color:${ok?'var(--ok)':'var(--bad)'}">${ok?'✓ Correct assessment':'✗ Risk was missed or misread'}</div>
+    <p class="expl-txt">${ch.feedback}</p>
+    <div class="signal-box" style="border-color:${rt.color}44;background:${rt.color}14">
+      <div class="signal-box-lbl" style="color:${rt.color}">Risk signal — ${rt.label}</div>
+      <p class="signal-box-txt">${ch.signal}</p>
+    </div>
+    <div class="escalation-box">
+      <div class="esc-lbl">Correct escalation action</div>
+      <p class="esc-txt">${ch.escalation}</p>
+    </div>`;
+  document.getElementById('mc').querySelector('.choices').after(expl);
+
+  const nb=document.createElement('button');
+  nb.className='btn-next';
+  nb.textContent=idx+1>=CARDS.length?'VIEW RESULTS →':'NEXT PROSPECT →';
+  nb.onclick=next; expl.after(nb);
+  document.getElementById('sc').textContent=score.c+' / '+score.t+' correct';
+}
+
+function next(){ idx++; idx>=CARDS.length?done():render(); }
+
+function done(){
+  const pct=Math.round(score.c/CARDS.length*100);
+  const [g,gc]=pct>=90?["Risk Radar — Expert","var(--ok)"]:pct>=70?["Developing — Review the misses","var(--gold)"]:["High Miss Rate — Practise more","var(--bad)"];
+
+  const rpRows=Object.entries(RISK_TYPES).map(([id,rt])=>{
+    const s=riskScore[id]; if(s.t===0) return '';
+    const p=Math.round((s.c/s.t)*100);
+    return `<div class="rp-row">
+      <span class="rp-lbl">${rt.label}</span>
+      <div class="rp-bar"><div class="rp-fill" style="width:${p}%;background:${rt.color}"></div></div>
+      <span class="rp-n" style="color:${rt.color}">${s.c}/${s.t}</span>
+    </div>`;
+  }).join('');
+
+  const misses=history.filter(h=>!h.ok);
+  const rev=misses.length?`<div class="review-list">${misses.map(h=>{
+    const rt=RISK_TYPES[h.c.riskType];
+    return `<div class="review-item">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:${rt.color};letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px">${rt.label}</div>
+      <div style="font-size:13px;color:var(--text);margin-bottom:3px;font-weight:500">${h.c.prospect.name}</div>
+      <div style="font-size:11px;color:var(--ok)">${h.c.choices.find(c=>c.correct).text.slice(0,90)}…</div>
+    </div>`;
+  }).join('')}</div>`:'';
+
+  document.getElementById('area').innerHTML=`<div class="results">
+    <div class="results-eyebrow">Assessment Complete · Client Vetting</div>
+    <div class="results-score" style="color:${gc}">${pct}<span style="font-size:36px">%</span></div>
+    <div class="results-grade" style="color:${gc}">${g}</div>
+    <p class="results-sub">${score.c} of ${CARDS.length} prospects correctly assessed</p>
+    <div class="risk-profile"><div class="rp-title">Your Risk Radar — by risk type</div>${rpRows}</div>
+    ${rev}
+    <button class="btn-restart" onclick="restart()">RETAKE →</button>
+  </div>`;
+}
+
+function restart(){
+  idx=0; score={c:0,t:0}; history=[];
+  riskCounts={aml:0,rep:0,reg:0,ops:0,san:0};
+  Object.values(riskScore).forEach(s=>{s.c=0;s.t=0;});
+  ['aml','rep','reg','ops','san'].forEach(id=>{
+    const nEl=document.querySelector(`#rc-${id} .radar-cell-n`);
+    const fEl=document.getElementById(`rf-${id}`);
+    if(nEl) nEl.textContent='0';
+    if(fEl) fEl.style.width='0%';
+  });
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
